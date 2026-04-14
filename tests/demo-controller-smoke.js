@@ -57,6 +57,7 @@
 
     assert(typeof controller.start === 'function', 'controller.start should exist');
     assert(typeof controller.advance === 'function', 'controller.advance should exist');
+    assert(typeof controller.beforeUpdate === 'function', 'controller.beforeUpdate should exist');
     assert(typeof controller.stop === 'function', 'controller.stop should exist');
     assert(typeof controller.afterUpdate === 'function', 'controller.afterUpdate should exist');
     assert(typeof controller.getStatus === 'function', 'controller.getStatus should exist');
@@ -121,25 +122,32 @@
     assert(status.completed === false, 'status.completed should default to false');
     assert(status.stepIndex === 0, 'status.stepIndex should start at zero');
 
-    controller.afterUpdate();
+    controller.beforeUpdate();
     status = controller.getStatus();
-    assert(actionCalls[0] === 1, 'first step action should run once after first update');
-    assert(checkCalls[0] === 1, 'first step check should run after action');
-    assert(status.stepStarted === true, 'step should be marked as started after first update');
+    assert(actionCalls[0] === 1, 'first step action should run before the update cycle');
+    assert(checkCalls[0] === 0, 'first step check should not run before afterUpdate');
+    assert(status.stepStarted === true, 'step should be marked as started before the update cycle');
     assert(status.waitingForAdvance === false, 'should not wait before first check passes');
     assert(pauseCalls === 0, 'playback.pause should not run before first check passes');
 
+    controller.afterUpdate();
+    assert(actionCalls[0] === 1, 'first step action should not rerun during afterUpdate');
+    assert(checkCalls[0] === 1, 'first step check should run in afterUpdate');
+
+    controller.beforeUpdate();
     controller.afterUpdate();
     assert(actionCalls[0] === 1, 'first step action should not rerun while waiting for check');
     assert(checkCalls[0] === 2, 'first step check should keep polling until it passes');
 
     context.readyFirst = true;
+    controller.beforeUpdate();
     controller.afterUpdate();
     status = controller.getStatus();
     assert(status.stepIndex === 0, 'controller should hold current step until minimum elapsed time is reached');
     assert(status.stepStarted === true, 'current step should remain started while minimum elapsed time has not passed');
 
     context.currentTime = 5;
+    controller.beforeUpdate();
     controller.afterUpdate();
     status = controller.getStatus();
     assert(status.waitingForAdvance === false, 'controller should not wait for manual advance after check passes');
@@ -148,18 +156,24 @@
     assert(status.stepStarted === false, 'next step should be ready to start automatically');
     assert(pauseCalls === 0, 'playback.pause should not run when steps auto-advance');
 
-    controller.afterUpdate();
+    controller.beforeUpdate();
     status = controller.getStatus();
     assert(actionCalls[1] === 1, 'second step action should run once');
+    assert(checkCalls[1] === 0, 'second step check should still wait for afterUpdate');
+
+    controller.afterUpdate();
+    status = controller.getStatus();
     assert(checkCalls[1] === 1, 'second step check should run');
     assert(status.waitingForAdvance === false, 'second step should continue while check is false');
 
     context.readySecond = true;
+    controller.beforeUpdate();
     controller.afterUpdate();
     status = controller.getStatus();
     assert(status.stepIndex === 1, 'second step should also wait for its minimum elapsed time');
 
     context.currentTime = 10;
+    controller.beforeUpdate();
     controller.afterUpdate();
     status = controller.getStatus();
     assert(status.completed === true, 'scene should be marked completed after final advance');

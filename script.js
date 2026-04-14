@@ -1052,6 +1052,9 @@ $('#time-button')
 // $('[data-toggle="tooltip"]').tooltip();
 
 state.updater = function(state) {
+  if (demoController && typeof demoController.beforeUpdate === 'function') {
+    demoController.beforeUpdate();
+  }
   raft.update(state.current);
   if (demoController) {
     demoController.afterUpdate();

@@ -141,7 +141,7 @@
         internalState = null;
         notifyStateChange(internalState);
       },
-      afterUpdate: function() {
+      beforeUpdate: function() {
         if (!internalState || !internalState.active || internalState.completed ||
             internalState.waitingForAdvance) {
           return;
@@ -158,8 +158,16 @@
           runStepAction(step, internalState.context);
           internalState.stepStarted = true;
           internalState.stepStartedAt = getContextTime(internalState.context);
+          notifyStateChange(internalState);
+        }
+      },
+      afterUpdate: function() {
+        if (!internalState || !internalState.active || internalState.completed ||
+            internalState.waitingForAdvance || !internalState.stepStarted) {
+          return;
         }
 
+        var step = internalState.scene.steps[internalState.stepIndex];
         if (runStepCheck(step, internalState.context)) {
           var minimumElapsed = typeof step.minimumElapsed === 'number' ? step.minimumElapsed : 0;
           var elapsed = getContextTime(internalState.context) - internalState.stepStartedAt;
