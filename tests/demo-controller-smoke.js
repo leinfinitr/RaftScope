@@ -127,20 +127,11 @@
     context.readyFirst = true;
     controller.afterUpdate();
     status = controller.getStatus();
-    assert(status.waitingForAdvance === true, 'controller should wait for manual advance after check passes');
-    assert(status.pausedForNarration === true, 'controller should mark pausedForNarration after check passes');
-    assert(pauseCalls === 1, 'playback.pause should run once for the first completed step');
-
-    controller.afterUpdate();
-    assert(actionCalls[0] === 1, 'waiting state should not rerun first action');
-    assert(checkCalls[0] === 3, 'waiting state should stop polling first step check');
-
-    controller.advance();
-    status = controller.getStatus();
-    assert(status.stepIndex === 1, 'advance should move to next step');
-    assert(status.stepStarted === false, 'next step should not be started immediately');
-    assert(status.waitingForAdvance === false, 'advance should clear waiting flag');
-    assert(status.pausedForNarration === false, 'advance should clear pausedForNarration flag');
+    assert(status.waitingForAdvance === false, 'controller should not wait for manual advance after check passes');
+    assert(status.pausedForNarration === false, 'controller should not mark pausedForNarration after check passes');
+    assert(status.stepIndex === 1, 'controller should advance to the next step automatically');
+    assert(status.stepStarted === false, 'next step should be ready to start automatically');
+    assert(pauseCalls === 0, 'playback.pause should not run when steps auto-advance');
 
     controller.afterUpdate();
     status = controller.getStatus();
@@ -151,17 +142,11 @@
     context.readySecond = true;
     controller.afterUpdate();
     status = controller.getStatus();
-    assert(status.waitingForAdvance === true, 'second step should also wait after check passes');
-    assert(status.pausedForNarration === true, 'second step should pause narration after completion');
-    assert(pauseCalls === 2, 'playback.pause should run again for second step');
-
-    controller.advance();
-    status = controller.getStatus();
     assert(status.completed === true, 'scene should be marked completed after final advance');
     assert(status.active === false, 'scene should be inactive after final advance');
     assert(status.waitingForAdvance === false, 'completed scene should not wait for advance');
     assert(status.scene && status.scene.id === scene.id, 'completed snapshot should still keep scene metadata');
-    assert(resumeCalls >= 1, 'playback.resume should be used when advancing unfinished scenes');
+    assert(resumeCalls === 0, 'playback.resume should not be used when scenes auto-advance');
 
     controller.stop();
     assert(controller.getStatus() === null, 'getStatus should be null after stop');

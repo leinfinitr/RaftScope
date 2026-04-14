@@ -127,6 +127,10 @@
       'scene badge text should change after starting recovery scene');
     assert(!!stopScene && stopScene.disabled === false,
       'stop button should be enabled after starting recovery scene');
+    assert(!!continueScene && continueScene.disabled === true,
+      'continue button should stay disabled when scenes no longer auto-pause');
+    assert(!!timeIcon && /glyphicon-pause/.test(timeIcon.className),
+      'starting a scene should keep the simulation paused until manual play');
 
     var stopClicked = clickNode(stopScene, frameWindow);
     assert(stopClicked, 'stop scene button should be clickable');

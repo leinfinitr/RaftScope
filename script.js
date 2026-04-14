@@ -413,10 +413,12 @@ render.legend = function() {
     panel.empty().append(body);
   }
   body.empty()
-    .append($('<p></p>').text('节点颜色表示当前任期；灰色表示节点已停止。'))
-    .append($('<p></p>').text('圆点消息表示 RPC 在节点间传输；暂停时可看到方向箭头。'))
-    .append($('<p></p>').text('右侧日志区展示每个节点日志、提交状态以及 nextIndex/matchIndex。'))
-    .append($('<p></p>').text('时间轴用于回放，场景模式会在关键步骤自动暂停，配合“继续当前步骤”讲解。'));
+    .append($('<ul class="legend-list"></ul>')
+      .append($('<li class="legend-item"></li>').html('<strong>节点圆圈</strong><span>服务器节点；灰色表示当前不可用。</span>'))
+      .append($('<li class="legend-item"></li>').html('<strong>节点颜色</strong><span>表示当前任期，红色标签代表 Leader。</span>'))
+      .append($('<li class="legend-item"></li>').html('<strong>飞行消息</strong><span>RequestVote / AppendEntries 在节点之间传输。</span>'))
+      .append($('<li class="legend-item"></li>').html('<strong>右侧日志</strong><span>展示每个节点的日志、提交状态与同步位置。</span>'))
+      .append($('<li class="legend-item"></li>').html('<strong>时间轴</strong><span>用于暂停、继续和回放，你可以手动控制讲解节奏。</span>')));
 };
 
 render.demoStatus = function(status) {
@@ -442,20 +444,15 @@ render.demoStatus = function(status) {
   var stepIndex = status.stepIndex;
   var step = steps[stepIndex] || {};
   var stepLabel = '第 ' + (stepIndex + 1) + ' / ' + steps.length + ' 步';
-  var badgeClass = status.waitingForAdvance ? 'label label-warning' : 'label label-primary';
-  var pauseMessage = step.pauseMessage || '步骤执行中，尚未进入讲解暂停点。';
+  var badgeClass = 'label label-primary';
 
   badge.attr('class', badgeClass).text(status.scene.title + ' · ' + stepLabel);
   stepCard.attr('class', 'panel panel-info').empty()
     .append($('<div class="panel-heading"></div>').text(status.scene.title))
     .append($('<div class="panel-body"></div>')
       .append($('<p><strong></strong>').text(stepLabel + '：' + (step.title || '未命名步骤')))
-      .append($('<p></p>').text(step.description || ''))
-      .append($('<p class="text-muted"></p>').text('讲解提示：' + pauseMessage))
-      .append($('<p></p>').text(status.waitingForAdvance ?
-        '当前已暂停，点击“继续当前步骤”进入下一步。' :
-        '步骤执行中，达到条件后会自动暂停等待继续。')));
-  continueButton.prop('disabled', !status.waitingForAdvance);
+      .append($('<p></p>').text(step.description || '')));
+  continueButton.prop('disabled', true);
   stopButton.prop('disabled', false);
 };
 
@@ -856,6 +853,9 @@ var sceneContext = {
   },
   setAppendEntriesEnabled: function(enabled) {
     raft.enableAppendEntries = !!enabled;
+  },
+  reset: function() {
+    resetSimulationToInitialState();
   }
 };
 
@@ -881,11 +881,7 @@ var isSceneWaitingForAdvance = function() {
 
 var handlePauseAdvanceInput = function() {
   $('.modal').modal('hide');
-  if (isSceneWaitingForAdvance()) {
-    demoController.advance();
-  } else {
-    playback.toggle();
-  }
+  playback.toggle();
 };
 
 var stopActiveSceneIfAny = function(reason) {
@@ -908,18 +904,6 @@ demoController = (typeof createDemoController === 'function') ?
     playback: playback,
     onStateChange: function(status) {
       render.demoStatus(status);
-      if (!status || !status.scene) {
-        return;
-      }
-      if (status.pausedForNarration &&
-          status.scene.steps &&
-          status.scene.steps[status.stepIndex] &&
-          status.scene.steps[status.stepIndex].pauseMessage) {
-        raft.log(status.scene.steps[status.stepIndex].pauseMessage);
-      }
-      if (status.completed) {
-        raft.log('场景完成：' + status.scene.title);
-      }
     }
   }) :
   null;
@@ -935,8 +919,6 @@ var startDemoScene = function(sceneId) {
   }
   resetSimulationToInitialState();
   demoController.start(scene, sceneContext);
-  raft.log('开始场景：' + scene.title);
-  playback.resume();
   render.update();
   return true;
 };
@@ -1061,7 +1043,7 @@ timeSlider.on('slide', function() {
 
 $('#time-button')
   .click(function() {
-    handlePauseAdvanceInput();
+    playback.toggle();
     return false;
   });
 
@@ -1097,10 +1079,6 @@ $('#start-overwrite-scene').click(function() {
 });
 
 $('#continue-scene').click(function() {
-  if (isSceneWaitingForAdvance()) {
-    demoController.advance();
-    render.update();
-  }
   return false;
 });
 

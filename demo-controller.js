@@ -41,6 +41,25 @@
       value.stepStarted = false;
     }
 
+    function logStepComplete(value) {
+      if (!value || !value.context || typeof value.context.log !== 'function') {
+        return;
+      }
+      value.context.log('步骤' + (value.stepIndex + 1) + ': 完成');
+    }
+
+    function logSceneCompletion(value) {
+      if (!value || !value.context || typeof value.context.log !== 'function') {
+        return;
+      }
+      if (!value.scene || !Array.isArray(value.scene.completionMessages)) {
+        return;
+      }
+      value.scene.completionMessages.forEach(function(message) {
+        value.context.log(message);
+      });
+    }
+
     function getSnapshot(value) {
       if (!value) {
         return null;
@@ -104,24 +123,7 @@
         notifyStateChange(internalState);
       },
       advance: function() {
-        if (!internalState || !internalState.waitingForAdvance || internalState.completed) {
-          return false;
-        }
-
-        var nextStepIndex = internalState.stepIndex + 1;
-        if (!hasStepAt(internalState.scene, nextStepIndex)) {
-          completeState(internalState);
-          notifyStateChange(internalState);
-          return true;
-        }
-
-        internalState.stepIndex = nextStepIndex;
-        internalState.stepStarted = false;
-        internalState.waitingForAdvance = false;
-        internalState.pausedForNarration = false;
-        safelyResumePlayback();
-        notifyStateChange(internalState);
-        return true;
+        return false;
       },
       stop: function() {
         internalState = null;
@@ -146,9 +148,16 @@
         }
 
         if (runStepCheck(step, internalState.context)) {
-          internalState.waitingForAdvance = true;
-          internalState.pausedForNarration = true;
-          safelyPausePlayback();
+          logStepComplete(internalState);
+          if (!hasStepAt(internalState.scene, internalState.stepIndex + 1)) {
+            completeState(internalState);
+            logSceneCompletion(internalState);
+          } else {
+            internalState.stepIndex += 1;
+            internalState.stepStarted = false;
+            internalState.waitingForAdvance = false;
+            internalState.pausedForNarration = false;
+          }
         }
         notifyStateChange(internalState);
       },
