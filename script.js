@@ -418,7 +418,7 @@ render.legend = function() {
       .append($('<li class="legend-item"></li>').html('<strong>节点颜色</strong><span>表示当前任期，红色标签代表 Leader。</span>'))
       .append($('<li class="legend-item"></li>').html('<strong>飞行消息</strong><span>RequestVote / AppendEntries 在节点之间传输。</span>'))
       .append($('<li class="legend-item"></li>').html('<strong>右侧日志</strong><span>展示每个节点的日志、提交状态与同步位置。</span>'))
-      .append($('<li class="legend-item"></li>').html('<strong>时间轴</strong><span>用于暂停、继续和回放，你可以手动控制讲解节奏。</span>')));
+      .append($('<li class="legend-item"></li>').html('<strong>时间轴</strong><span>用于暂停、继续和回放。</span>')));
 };
 
 render.demoStatus = function(status) {

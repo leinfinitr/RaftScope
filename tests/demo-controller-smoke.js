@@ -63,7 +63,14 @@
 
     var actionCalls = [0, 0];
     var checkCalls = [0, 0];
-    var context = { readyFirst: false, readySecond: false };
+    var context = {
+      readyFirst: false,
+      readySecond: false,
+      currentTime: 0,
+      model: function() {
+        return { time: this.currentTime };
+      }
+    };
     var scene = {
       id: 'smoke-scene',
       title: 'Smoke Scene',
@@ -71,6 +78,7 @@
         title: 'step-1',
         description: 'first step',
         pauseMessage: 'pause 1',
+        minimumElapsed: 5,
         action: function(ctx) {
           actionCalls[0] += 1;
           ctx.firstActionDone = true;
@@ -83,6 +91,7 @@
         title: 'step-2',
         description: 'second step',
         pauseMessage: 'pause 2',
+        minimumElapsed: 5,
         action: function(ctx) {
           actionCalls[1] += 1;
           ctx.secondActionDone = true;
@@ -127,6 +136,12 @@
     context.readyFirst = true;
     controller.afterUpdate();
     status = controller.getStatus();
+    assert(status.stepIndex === 0, 'controller should hold current step until minimum elapsed time is reached');
+    assert(status.stepStarted === true, 'current step should remain started while minimum elapsed time has not passed');
+
+    context.currentTime = 5;
+    controller.afterUpdate();
+    status = controller.getStatus();
     assert(status.waitingForAdvance === false, 'controller should not wait for manual advance after check passes');
     assert(status.pausedForNarration === false, 'controller should not mark pausedForNarration after check passes');
     assert(status.stepIndex === 1, 'controller should advance to the next step automatically');
@@ -140,6 +155,11 @@
     assert(status.waitingForAdvance === false, 'second step should continue while check is false');
 
     context.readySecond = true;
+    controller.afterUpdate();
+    status = controller.getStatus();
+    assert(status.stepIndex === 1, 'second step should also wait for its minimum elapsed time');
+
+    context.currentTime = 10;
     controller.afterUpdate();
     status = controller.getStatus();
     assert(status.completed === true, 'scene should be marked completed after final advance');

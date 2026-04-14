@@ -41,6 +41,17 @@
       value.stepStarted = false;
     }
 
+    function getContextTime(context) {
+      if (!context || typeof context.model !== 'function') {
+        return 0;
+      }
+      var model = context.model();
+      if (!model || typeof model.time !== 'number') {
+        return 0;
+      }
+      return model.time;
+    }
+
     function logStepComplete(value) {
       if (!value || !value.context || typeof value.context.log !== 'function') {
         return;
@@ -117,6 +128,7 @@
           completed: !hasSteps,
           stepIndex: 0,
           stepStarted: false,
+          stepStartedAt: 0,
           waitingForAdvance: false,
           pausedForNarration: false,
         };
@@ -145,9 +157,16 @@
         if (!internalState.stepStarted) {
           runStepAction(step, internalState.context);
           internalState.stepStarted = true;
+          internalState.stepStartedAt = getContextTime(internalState.context);
         }
 
         if (runStepCheck(step, internalState.context)) {
+          var minimumElapsed = typeof step.minimumElapsed === 'number' ? step.minimumElapsed : 0;
+          var elapsed = getContextTime(internalState.context) - internalState.stepStartedAt;
+          if (elapsed < minimumElapsed) {
+            notifyStateChange(internalState);
+            return;
+          }
           logStepComplete(internalState);
           if (!hasStepAt(internalState.scene, internalState.stepIndex + 1)) {
             completeState(internalState);
@@ -155,6 +174,7 @@
           } else {
             internalState.stepIndex += 1;
             internalState.stepStarted = false;
+            internalState.stepStartedAt = 0;
             internalState.waitingForAdvance = false;
             internalState.pausedForNarration = false;
           }
