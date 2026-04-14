@@ -1,5 +1,237 @@
+:root {
+  --font-ui: "Segoe UI", "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "Consolas", "SFMono-Regular", "Courier New", monospace;
+  --bg-page-start: #e8f5fb;
+  --bg-page-mid: #edf9f4;
+  --bg-page-end: #f7fcf4;
+  --text-primary: #1e3f52;
+  --text-secondary: #355f70;
+  --text-soft: #5a7c8a;
+  --surface-hero: #f6fdff;
+  --surface-card: #ffffff;
+  --surface-muted: #f3fbff;
+  --border-soft: #b7d7e3;
+  --border-strong: #88bace;
+  --accent: #2f9fb7;
+  --accent-strong: #1f7f96;
+  --shadow-card: 0 10px 30px rgba(45, 97, 120, 0.12);
+  --shadow-soft: 0 6px 18px rgba(45, 97, 120, 0.1);
+  --radius-lg: 20px;
+  --radius-md: 14px;
+  --radius-sm: 10px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
 body {
-  font-size: 16pt;
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--font-ui);
+  font-size: 16px;
+  line-height: 1.45;
+  color: var(--text-primary);
+  background-color: var(--bg-page-start);
+  background-image: linear-gradient(145deg, var(--bg-page-start) 0%, var(--bg-page-mid) 52%, var(--bg-page-end) 100%);
+}
+
+#app-shell {
+  max-width: 1220px;
+  margin: 22px auto 28px;
+  padding: 20px;
+}
+
+.app-hero-row {
+  margin: 0 0 16px;
+}
+
+.app-title {
+  margin: 0;
+  padding: 16px 22px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(135deg, #ffffff, var(--surface-hero));
+  box-shadow: var(--shadow-card);
+  color: var(--text-primary);
+  font-size: 31px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+#scene-status-badge {
+  margin-left: 10px;
+  border-radius: 999px;
+  background-color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.app-layout-row {
+  margin: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.app-layout-row > .app-sidebar,
+.app-layout-row > .app-stage-column {
+  float: none;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.app-layout-row > .app-sidebar {
+  width: 320px;
+  flex: 0 0 320px;
+}
+
+.app-layout-row > .app-stage-column {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.app-card,
+.app-sidebar .panel,
+.stage-card,
+.control-card,
+#log-container {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-soft);
+}
+
+.app-sidebar .panel {
+  margin-bottom: 12px;
+}
+
+.app-sidebar .panel-heading {
+  border-color: var(--border-soft);
+  border-top-left-radius: var(--radius-md);
+  border-top-right-radius: var(--radius-md);
+  background: linear-gradient(180deg, #f5fbff 0%, #e9f5fb 100%);
+  color: var(--text-secondary);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.app-sidebar .panel-body {
+  color: var(--text-secondary);
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.btn {
+  border-radius: var(--radius-sm);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: normal;
+}
+
+.btn-info {
+  border-color: #2f97af;
+  background-color: #46abc2;
+}
+
+.btn-info:hover,
+.btn-info:focus {
+  border-color: #2388a0;
+  background-color: #329bb4;
+}
+
+.btn-primary {
+  border-color: #1d8aa8;
+  background-color: #279fbe;
+}
+
+.btn-primary:hover,
+.btn-primary:focus {
+  border-color: #167590;
+  background-color: #1e8ead;
+}
+
+.btn-default {
+  border-color: #9bbbc7;
+  color: var(--text-secondary);
+  background-color: #f6fbfd;
+}
+
+.app-stage-column .row {
+  margin: 0 0 12px;
+}
+
+.app-stage-column .row:last-child {
+  margin-bottom: 0;
+}
+
+.app-stage-column .col-md-12 {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.stage-card {
+  padding: 10px 12px;
+}
+
+.stage-card svg {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  min-height: 320px;
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  background: var(--surface-muted);
+}
+
+#log-container {
+  height: 170px;
+  padding: 10px 12px;
+  overflow-y: auto;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  line-height: 1.38;
+  color: #1f3e52;
+  background-image: linear-gradient(180deg, #fbfeff 0%, #edf7fc 100%);
+}
+
+.control-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+}
+
+#time-button {
+  color: inherit;
+}
+
+#time-icon,
+#speed-icon {
+  font-size: 24px;
+  color: var(--accent-strong);
+  vertical-align: middle;
+}
+
+#time,
+#speed {
+  width: 100%;
+}
+
+.slider.slider-horizontal {
+  width: 100% !important;
+}
+
+.slider-track {
+  background-image: linear-gradient(to bottom, #c1dbe7 0%, #edf6fb 100%);
+  border: 1px solid #aacedd;
+}
+
+.slider-selection {
+  background-image: linear-gradient(to bottom, #5aafc7 0%, #7cc0d3 100%);
 }
 
 #modal-details {
@@ -7,33 +239,32 @@ body {
 }
 
 .tooltip {
-  font-size: 16pt;
+  font-size: 14px;
 }
 
 .tooltip.top {
   padding: 9px 0;
 }
+
 .tooltip.top .tooltip-arrow {
   margin-left: -10px;
   border-width: 10px 10px 0;
 }
 
 textarea#title {
- width: 100%;
- max-height: 3.1ex;
- font-weight: bold;
- margin-top: 10px;
+  width: 100%;
+  max-height: 3.1ex;
+  margin-top: 10px;
+  font-weight: bold;
 }
 
 svg a:hover {
   cursor: pointer;
 }
 
-svg #ring, svg #logsbg {
+svg #ring,
+svg #logsbg {
   fill: #eeeeee;
-}
-
-svg .server {
 }
 
 svg .server path {
@@ -63,8 +294,7 @@ svg .server a,
 svg .server a:active,
 svg .server a:hover,
 svg .server a:focus,
-svg .server a:visited
-{
+svg .server a:visited {
   font-size: inherit;
   text-decoration: none;
 }
@@ -89,20 +319,16 @@ svg .message {
 }
 
 svg .message.RequestVote {
-  fill:   #66c2a5;
+  fill: #66c2a5;
   stroke: #66c2a5;
 }
 
 svg .message.AppendEntries {
-  fill:   #fc8d62;
+  fill: #fc8d62;
   stroke: #fc8d62;
 }
 
-svg .message.request circle {
-}
-
 svg .message.reply circle {
-  /* fill with no opacity so it's clickable */
   fill-opacity: 0;
 }
 
@@ -123,12 +349,6 @@ svg .entry rect {
   stroke-width: 3;
 }
 
-svg .entry.uncommitted rect {
-}
-
-svg .entry.committed rect {
-}
-
 svg .entry text {
   text-anchor: middle;
   dominant-baseline: central;
@@ -136,32 +356,90 @@ svg .entry text {
 }
 
 svg #pause.paused {
-  fill:white;
+  fill: white;
 }
 
 svg #pause.resumed {
-  fill:none;
+  fill: none;
 }
 
 @media (min-width: 768px) {
   #modal-details .modal-body .dl-horizontal dt {
     width: 100px;
   }
+
   .dl-horizontal dd {
     margin-left: 120px;
   }
 }
 
-/* darker slider backgrounds (higher contrast) */
-.slider-track {
-  background-image: linear-gradient(to bottom, #c3c3c3 0%, #efefef 100%);
-}
-.slider-selection {
-  background-image: linear-gradient(to bottom, #efefef 0%, #c3c3c3 100%);
+@media (max-width: 991px) {
+  #app-shell {
+    max-width: 960px;
+    margin: 16px auto 22px;
+    padding: 14px;
+  }
+
+  .app-title {
+    font-size: 26px;
+    padding: 14px 16px;
+  }
+
+  .app-layout-row {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .app-layout-row > .app-stage-column {
+    order: 1;
+    width: 100%;
+    flex: 1 1 auto;
+  }
+
+  .app-layout-row > .app-sidebar {
+    order: 2;
+    width: 100%;
+    flex: 1 1 auto;
+  }
+
+  .stage-card svg {
+    min-height: 280px;
+  }
+
+  .control-card {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
 }
 
-a#time-button  {
-  color: inherit;
+@media (max-width: 640px) {
+  body {
+    font-size: 15px;
+  }
+
+  .app-title {
+    font-size: 22px;
+    line-height: 1.3;
+  }
+
+  #scene-status-badge {
+    display: inline-block;
+    margin-left: 0;
+    margin-top: 8px;
+  }
+
+  .stage-card {
+    padding: 8px;
+  }
+
+  .stage-card svg {
+    min-height: 220px;
+  }
+
+  #log-container {
+    height: 148px;
+    font-size: 13px;
+  }
 }
 
 .slide {
@@ -181,48 +459,47 @@ a#time-button  {
   color: #428bca;
 }
 
-
 .slide ul {
-  font-size:20pt;
+  font-size: 20pt;
   font-weight: bold;
   line-height: 16pt;
   color: #428bca;
 }
 
 .slide li p {
-  font-weight: normal;
-  font-size:16pt;
   color: #333;
+  font-size: 16pt;
+  font-weight: normal;
   line-height: 1.4;
 }
 
 .slide blockquote p::before {
   content: "\201C";
-  font-weight: bold;
-  font-size: 18pt;
-  line-height: 14pt;
   margin-right: 2px;
+  font-size: 18pt;
+  font-weight: bold;
+  line-height: 14pt;
 }
+
 .slide blockquote p::after {
   content: "\201D";
-  font-weight: bold;
   font-size: 18pt;
+  font-weight: bold;
   line-height: 14pt;
 }
 
 .slide blockquote {
-  padding: 0;
-  padding-left: 20px;
-  border: none;
   margin-bottom: 15px;
+  padding: 0 0 0 20px;
+  border: none;
 }
 
 .slide blockquote p {
-  line-height: 1.1;
+  margin-bottom: 2px;
+  color: #555;
   font-size: 14pt;
   font-style: italic;
-  color: #555;
-  margin-bottom: 2px;
+  line-height: 1.1;
 }
 
 .slide h1,

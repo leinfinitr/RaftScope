@@ -1,0 +1,160 @@
+(function(global) {
+  'use strict';
+
+  global.createDemoController = function(options) {
+    options = options || {};
+    var playback = options.playback || {};
+    var internalState = null;
+
+    function cloneStep(step) {
+      if (!step)
+        return step;
+      return Object.assign({}, step);
+    }
+
+    function cloneScene(scene) {
+      if (!scene) {
+        return null;
+      }
+      var clone = Object.assign({}, scene);
+      var steps = scene.steps;
+      if (Array.isArray(steps)) {
+        clone.steps = steps.map(function(step) {
+          return cloneStep(step);
+        });
+      } else {
+        clone.steps = [];
+      }
+      return clone;
+    }
+
+    function hasStepAt(scene, index) {
+      return !!(scene && Array.isArray(scene.steps) &&
+                index >= 0 && index < scene.steps.length);
+    }
+
+    function completeState(value) {
+      value.active = false;
+      value.completed = true;
+      value.waitingForAdvance = false;
+      value.pausedForNarration = false;
+      value.stepStarted = false;
+    }
+
+    function getSnapshot(value) {
+      if (!value) {
+        return null;
+      }
+      return {
+        active: value.active,
+        scene: cloneScene(value.scene),
+        stepIndex: value.stepIndex,
+        stepStarted: value.stepStarted,
+        waitingForAdvance: value.waitingForAdvance,
+        pausedForNarration: value.pausedForNarration,
+        completed: value.completed
+      };
+    }
+
+    function notifyStateChange(value) {
+      if (typeof options.onStateChange === 'function') {
+        options.onStateChange(getSnapshot(value));
+      }
+    }
+
+    function safelyPausePlayback() {
+      if (typeof playback.pause === 'function') {
+        playback.pause();
+      }
+    }
+
+    function safelyResumePlayback() {
+      if (typeof playback.resume === 'function') {
+        playback.resume();
+      }
+    }
+
+    function runStepAction(step, context) {
+      if (typeof step.action === 'function') {
+        step.action(context);
+      }
+    }
+
+    function runStepCheck(step, context) {
+      if (typeof step.check === 'function') {
+        return !!step.check(context);
+      }
+      return true;
+    }
+
+    return {
+      start: function(scene, context) {
+        var clonedScene = cloneScene(scene || {});
+        var hasSteps = hasStepAt(clonedScene, 0);
+        internalState = {
+          scene: clonedScene,
+          context: context || {},
+          active: hasSteps,
+          completed: !hasSteps,
+          stepIndex: 0,
+          stepStarted: false,
+          waitingForAdvance: false,
+          pausedForNarration: false,
+        };
+        notifyStateChange(internalState);
+      },
+      advance: function() {
+        if (!internalState || !internalState.waitingForAdvance || internalState.completed) {
+          return false;
+        }
+
+        var nextStepIndex = internalState.stepIndex + 1;
+        if (!hasStepAt(internalState.scene, nextStepIndex)) {
+          completeState(internalState);
+          notifyStateChange(internalState);
+          return true;
+        }
+
+        internalState.stepIndex = nextStepIndex;
+        internalState.stepStarted = false;
+        internalState.waitingForAdvance = false;
+        internalState.pausedForNarration = false;
+        safelyResumePlayback();
+        notifyStateChange(internalState);
+        return true;
+      },
+      stop: function() {
+        internalState = null;
+        notifyStateChange(internalState);
+      },
+      afterUpdate: function() {
+        if (!internalState || !internalState.active || internalState.completed ||
+            internalState.waitingForAdvance) {
+          return;
+        }
+
+        if (!hasStepAt(internalState.scene, internalState.stepIndex)) {
+          completeState(internalState);
+          notifyStateChange(internalState);
+          return;
+        }
+
+        var step = internalState.scene.steps[internalState.stepIndex];
+        if (!internalState.stepStarted) {
+          runStepAction(step, internalState.context);
+          internalState.stepStarted = true;
+        }
+
+        if (runStepCheck(step, internalState.context)) {
+          internalState.waitingForAdvance = true;
+          internalState.pausedForNarration = true;
+          safelyPausePlayback();
+        }
+        notifyStateChange(internalState);
+      },
+      getStatus: function() {
+        return getSnapshot(internalState);
+      }
+    };
+  };
+})(window);

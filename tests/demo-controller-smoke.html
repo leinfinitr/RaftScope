@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Demo Controller Smoke Test</title>
+    <script>
+      window.renderSmokeResults = function(results) {
+        var failed = results.filter(function(r) { return !r.pass; });
+        var root = document.getElementById('results');
+        root.className = failed.length ? 'fail' : 'pass';
+        root.innerHTML = '<h1>' + (failed.length ? 'FAIL' : 'PASS') + '</h1>' +
+          results.map(function(r) {
+            return '<div>' + (r.pass ? 'PASS' : 'FAIL') + ' - ' + r.message + '</div>';
+          }).join('');
+      };
+    </script>
+  </head>
+  <body>
+    <div id="results">Loading...</div>
+    <script src="../demo-controller.js"></script>
+    <script src="../demo-scenes.js"></script>
+    <script src="demo-controller-smoke.js"></script>
+  </body>
+</html>

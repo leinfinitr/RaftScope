@@ -397,32 +397,6 @@ raft.alignTimers = function(model) {
   });
 };
 
-raft.setupLogReplicationScenario = function(model) {
-  var s1 = model.servers[0];
-  raft.restart(model, model.servers[1]);
-  raft.restart(model, model.servers[2]);
-  raft.restart(model, model.servers[3]);
-  raft.restart(model, model.servers[4]);
-  raft.timeout(model, model.servers[0]);
-  rules.startNewElection(model, s1);
-  model.servers[1].term = 2;
-  model.servers[2].term = 2;
-  model.servers[3].term = 2;
-  model.servers[4].term = 2;
-  model.servers[1].votedFor = 1;
-  model.servers[2].votedFor = 1;
-  model.servers[3].votedFor = 1;
-  model.servers[4].votedFor = 1;
-  s1.voteGranted = util.makeMap(s1.peers, true);
-  raft.stop(model, model.servers[2]);
-  raft.stop(model, model.servers[3]);
-  raft.stop(model, model.servers[4]);
-  rules.becomeLeader(model, s1);
-  raft.clientRequest(model, s1);
-  raft.clientRequest(model, s1);
-  raft.clientRequest(model, s1);
-};
-
 // 日志记录函数
 raft.log = function(message) {
     var logContainer = $('#log-container');

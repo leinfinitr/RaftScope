@@ -7,6 +7,7 @@
 /* global makeState */
 /* global ELECTION_TIMEOUT */
 /* global NUM_SERVERS */
+/* global createDemoController */
 'use strict';
 
 var playback;
@@ -14,6 +15,7 @@ var render = {};
 var state;
 var record;
 var replay;
+var demoController;
 
 $(function() {
 
@@ -400,6 +402,63 @@ render.logs = function() {
   });
 };
 
+render.legend = function() {
+  var panel = $('#legend-panel');
+  if (!panel.length) {
+    return;
+  }
+  var body = $('.panel-body', panel);
+  if (!body.length) {
+    body = $('<div class="panel-body"></div>');
+    panel.empty().append(body);
+  }
+  body.empty()
+    .append($('<p></p>').text('节点颜色表示当前任期；灰色表示节点已停止。'))
+    .append($('<p></p>').text('圆点消息表示 RPC 在节点间传输；暂停时可看到方向箭头。'))
+    .append($('<p></p>').text('右侧日志区展示每个节点日志、提交状态以及 nextIndex/matchIndex。'))
+    .append($('<p></p>').text('时间轴用于回放，场景模式会在关键步骤自动暂停，配合“继续当前步骤”讲解。'));
+};
+
+render.demoStatus = function(status) {
+  var badge = $('#scene-status-badge');
+  var stepCard = $('#step-card');
+  var continueButton = $('#continue-scene');
+  var stopButton = $('#stop-scene');
+  var hasActiveScene = !!(status && status.active && status.scene);
+
+  if (!hasActiveScene) {
+    badge.attr('class', 'label label-default').text('手动模式');
+    stepCard.attr('class', 'panel panel-info').empty()
+      .append($('<div class="panel-heading"></div>').text('当前步骤'))
+      .append($('<div class="panel-body"></div>')
+        .append($('<p><strong>手动演示模式</strong></p>'))
+        .append($('<p></p>').text('先启动左侧场景按钮可获得分步讲解；也可直接拖动时间轴、右键节点或使用快捷键演示。')));
+    continueButton.prop('disabled', true);
+    stopButton.prop('disabled', true);
+    return;
+  }
+
+  var steps = status.scene.steps || [];
+  var stepIndex = status.stepIndex;
+  var step = steps[stepIndex] || {};
+  var stepLabel = '第 ' + (stepIndex + 1) + ' / ' + steps.length + ' 步';
+  var badgeClass = status.waitingForAdvance ? 'label label-warning' : 'label label-primary';
+  var pauseMessage = step.pauseMessage || '步骤执行中，尚未进入讲解暂停点。';
+
+  badge.attr('class', badgeClass).text(status.scene.title + ' · ' + stepLabel);
+  stepCard.attr('class', 'panel panel-info').empty()
+    .append($('<div class="panel-heading"></div>').text(status.scene.title))
+    .append($('<div class="panel-body"></div>')
+      .append($('<p><strong></strong>').text(stepLabel + '：' + (step.title || '未命名步骤')))
+      .append($('<p></p>').text(step.description || ''))
+      .append($('<p class="text-muted"></p>').text('讲解提示：' + pauseMessage))
+      .append($('<p></p>').text(status.waitingForAdvance ?
+        '当前已暂停，点击“继续当前步骤”进入下一步。' :
+        '步骤执行中，达到条件后会自动暂停等待继续。')));
+  continueButton.prop('disabled', !status.waitingForAdvance);
+  stopButton.prop('disabled', false);
+};
+
 render.messages = function(messagesSame) {
   var messagesGroup = $('#messages', svg);
   if (!messagesSame) {
@@ -626,6 +685,218 @@ render.update = function() {
     render.logs();
 };
 
+var getLeader = function() {
+  var leader = null;
+  var term = 0;
+  state.current.servers.forEach(function(server) {
+    if (server.state == 'leader' &&
+        server.term > term) {
+        leader = server;
+        term = server.term;
+    }
+  });
+  return leader;
+};
+
+var findServerById = function(id) {
+  var match = null;
+  state.current.servers.forEach(function(server) {
+    if (server.id == id) {
+      match = server;
+    }
+  });
+  return match;
+};
+
+var buildPeersForServer = function(id) {
+  var peers = [];
+  for (var i = 1; i <= NUM_SERVERS; i += 1) {
+    if (i != id) {
+      peers.push(i);
+    }
+  }
+  return peers;
+};
+
+var clearDemoLogs = function() {
+  var logContainer = $('#log-container');
+  if (logContainer.length) {
+    logContainer.empty();
+  }
+};
+
+var resetClusterForScene = function() {
+  var now = state.current.time;
+  var servers = [];
+  for (var id = 1; id <= NUM_SERVERS; id += 1) {
+    var server = raft.server(id, buildPeersForServer(id));
+    server.electionAlarm = raft.makeElectionAlarm(now);
+    servers.push(server);
+  }
+  state.current.servers = servers;
+  state.current.messages = [];
+  raft.enableAppendEntries = true;
+  clearDemoLogs();
+};
+
+var forceLeaderForScene = function(id) {
+  var leader = findServerById(id);
+  if (!leader) {
+    return null;
+  }
+  if (leader.state == 'stopped') {
+    raft.networkRecovery(state.current, leader);
+  }
+  var now = state.current.time;
+  state.current.servers.forEach(function(server) {
+    if (server.id != id) {
+      server.state = 'follower';
+      server.votedFor = null;
+      server.electionAlarm = now + (ELECTION_TIMEOUT * 3) + (server.id * 1000);
+    }
+  });
+  leader.electionAlarm = 0;
+  raft.timeout(state.current, leader);
+
+  if (leader.state != 'leader') {
+    var maxTerm = 0;
+    state.current.servers.forEach(function(server) {
+      maxTerm = Math.max(maxTerm, server.term);
+    });
+    leader.term = maxTerm + 1;
+    leader.state = 'leader';
+    leader.votedFor = leader.id;
+    leader.voteGranted = util.makeMap(leader.peers, true);
+    leader.matchIndex = util.makeMap(leader.peers, 0);
+    leader.nextIndex = util.makeMap(leader.peers, leader.log.length + 1);
+    leader.rpcDue = util.makeMap(leader.peers, 0);
+    leader.heartbeatDue = util.makeMap(leader.peers, 0);
+    leader.electionAlarm = util.Inf;
+  }
+  return leader;
+};
+
+var sceneContext = {
+  model: function() {
+    return state.current;
+  },
+  server: function(id) {
+    return findServerById(id);
+  },
+  resetCluster: function() {
+    resetClusterForScene();
+  },
+  forceLeader: function(id) {
+    return forceLeaderForScene(id);
+  },
+  networkFail: function(id) {
+    var server = findServerById(id);
+    if (server) {
+      raft.networkFailure(state.current, server);
+    }
+  },
+  networkRecover: function(id) {
+    var server = findServerById(id);
+    if (server) {
+      raft.networkRecovery(state.current, server);
+    }
+  },
+  clientRequest: function(id) {
+    var server = findServerById(id);
+    if (server) {
+      raft.clientRequest(state.current, server);
+    }
+  },
+  setAppendEntriesEnabled: function(enabled) {
+    raft.enableAppendEntries = !!enabled;
+  }
+};
+
+var sceneRegistry = {};
+var scenesApi = window.demoScenes;
+if (scenesApi && typeof scenesApi.getAll === 'function') {
+  scenesApi.getAll().forEach(function(scene) {
+    sceneRegistry[scene.id] = scene;
+  });
+}
+
+var getSceneById = function(sceneId) {
+  return sceneRegistry[sceneId] || null;
+};
+
+var isSceneWaitingForAdvance = function() {
+  if (!demoController) {
+    return false;
+  }
+  var status = demoController.getStatus();
+  return !!(status && status.waitingForAdvance);
+};
+
+var handlePauseAdvanceInput = function() {
+  $('.modal').modal('hide');
+  if (isSceneWaitingForAdvance()) {
+    demoController.advance();
+  } else {
+    playback.toggle();
+  }
+};
+
+var stopActiveSceneIfAny = function(reason) {
+  if (!demoController) {
+    return false;
+  }
+  var status = demoController.getStatus();
+  if (!status || !status.active) {
+    return false;
+  }
+  demoController.stop();
+  if (reason) {
+    raft.log(reason);
+  }
+  return true;
+};
+
+demoController = (typeof createDemoController === 'function') ?
+  createDemoController({
+    playback: playback,
+    onStateChange: function(status) {
+      render.demoStatus(status);
+      if (!status || !status.scene) {
+        return;
+      }
+      if (status.pausedForNarration &&
+          status.scene.steps &&
+          status.scene.steps[status.stepIndex] &&
+          status.scene.steps[status.stepIndex].pauseMessage) {
+        raft.log(status.scene.steps[status.stepIndex].pauseMessage);
+      }
+      if (status.completed) {
+        raft.log('场景完成：' + status.scene.title);
+      }
+    }
+  }) :
+  null;
+
+var startDemoScene = function(sceneId) {
+  if (!demoController) {
+    return false;
+  }
+  var scene = getSceneById(sceneId);
+  if (!scene) {
+    raft.log('未找到演示场景：' + sceneId);
+    return false;
+  }
+  if (demoController.getStatus()) {
+    demoController.stop();
+  }
+  state.fork();
+  demoController.start(scene, sceneContext);
+  raft.log('开始场景：' + scene.title);
+  playback.resume();
+  render.update();
+  return true;
+};
+
 (function() {
   var last = null;
   var step = function(timestamp) {
@@ -654,8 +925,7 @@ $(window).keyup(function(e) {
   var leader = getLeader();
   if (e.keyCode == ' '.charCodeAt(0) ||
       e.keyCode == 190 /* dot, emitted by Logitech remote */) {
-    $('.modal').modal('hide');
-    playback.toggle();
+    handlePauseAdvanceInput();
   } else if (e.keyCode == 'C'.charCodeAt(0)) {
     if (leader !== null) {
       state.fork();
@@ -685,13 +955,6 @@ $(window).keyup(function(e) {
     state.save();
     render.update();
     $('.modal').modal('hide');
-  } else if (e.keyCode == 'L'.charCodeAt(0)) {
-    state.fork();
-    playback.pause();
-    raft.setupLogReplicationScenario(state.current);
-    state.save();
-    render.update();
-    $('.modal').modal('hide');
   } else if (e.keyCode == 'B'.charCodeAt(0)) {
     state.fork();
     raft.resumeAll(state.current);
@@ -712,19 +975,6 @@ $('#modal-details').on('show.bs.modal', function(e) {
   playback.pause();
 });
 
-var getLeader = function() {
-  var leader = null;
-  var term = 0;
-  state.current.servers.forEach(function(server) {
-    if (server.state == 'leader' &&
-        server.term > term) {
-        leader = server;
-        term = server.term;
-    }
-  });
-  return leader;
-};
-
 $("#speed").slider({
   tooltip: 'always',
   formater: function(value) {
@@ -740,25 +990,34 @@ timeSlider.slider({
     return (value / 1e6).toFixed(3) + 's';
   },
 });
+var sceneCanceledByTimelineDrag = false;
 timeSlider.on('slideStart', function() {
+  sceneCanceledByTimelineDrag = stopActiveSceneIfAny('已取消场景：手动拖动时间轴');
   playback.pause();
   sliding = true;
 });
 timeSlider.on('slideStop', function() {
   // If you click rather than drag,  there won't be any slide events, so you
   // have to seek and update here too.
+  if (!sceneCanceledByTimelineDrag) {
+    sceneCanceledByTimelineDrag = stopActiveSceneIfAny('已取消场景：手动调整时间轴');
+  }
   state.seek(timeSlider.slider('getValue'));
+  sceneCanceledByTimelineDrag = false;
   sliding = false;
   render.update();
 });
 timeSlider.on('slide', function() {
+  if (!sceneCanceledByTimelineDrag) {
+    sceneCanceledByTimelineDrag = stopActiveSceneIfAny('已取消场景：手动拖动时间轴');
+  }
   state.seek(timeSlider.slider('getValue'));
   render.update();
 });
 
 $('#time-button')
   .click(function() {
-    playback.toggle();
+    handlePauseAdvanceInput();
     return false;
   });
 
@@ -768,6 +1027,9 @@ $('#time-button')
 
 state.updater = function(state) {
   raft.update(state.current);
+  if (demoController) {
+    demoController.afterUpdate();
+  }
   var time = state.current.time;
   var base = state.base(time);
   state.current.time = base.time;
@@ -777,82 +1039,36 @@ state.updater = function(state) {
 };
 
 state.init();
+render.legend();
+render.demoStatus(demoController ? demoController.getStatus() : null);
 render.update();
 
-// 添加复杂场景测试按钮事件处理
-$('#test-complex-scenario').click(function() {
-  // 暂停当前的播放
-  playback.pause();
-  
-  // 重置所有服务器状态
-  state.current.servers.forEach(function(server) {
-    server.state = 'follower';
-    server.term = 1;
-    server.votedFor = null;
-    server.log = [];
-    server.commitIndex = 0;
-    server.electionAlarm = raft.makeElectionAlarm(state.current.time);
-  });
-  
-  // 清空消息队列
-  state.current.messages = [];
-  
-  // 运行测试
-  raft.testComplexScenario(state.current).then(function(result) {
-    if (result.success) {
-      raft.log('复杂场景测试完成！');
-    } else {
-      raft.log('测试失败：' + result.message);
-    }
-  });
-  
-  // 启动定时更新视图
-  var updateInterval = setInterval(function() {
-    render.update();
-  }, 100);
-  
-  // 60秒后停止更新
-  setTimeout(function() {
-    clearInterval(updateInterval);
-  }, 60000);
+$('#start-recovery-scene').click(function() {
+  startDemoScene('failure-recovery-log-catchup');
+  return false;
 });
 
-// 添加提交规则演示按钮事件处理
-$('#submit-rule-demo').click(function() {
-  // 暂停当前的播放
-  playback.pause();
-  
-  // 重置所有服务器状态
-  state.current.servers.forEach(function(server) {
-    server.state = 'follower';
-    server.term = 1;
-    server.votedFor = null;
-    server.log = [];
-    server.commitIndex = 0;
-    server.electionAlarm = raft.makeElectionAlarm(state.current.time);
-  });
-  
-  // 清空消息队列
-  state.current.messages = [];
-  
-  // 运行规则演示
-  raft.submitRuleDemo(state.current).then(function(result) {
-    if (result.success) {
-      raft.log('规则演示完成！');
-    } else {
-      raft.log('演示失败：' + result.message);
-    }
-  });
-  
-  // 启动定时更新视图
-  var updateInterval = setInterval(function() {
+$('#start-overwrite-scene').click(function() {
+  startDemoScene('conflict-log-overwrite');
+  return false;
+});
+
+$('#continue-scene').click(function() {
+  if (isSceneWaitingForAdvance()) {
+    demoController.advance();
     render.update();
-  }, 100);
-  
-  // 60秒后停止更新
-  setTimeout(function() {
-    clearInterval(updateInterval);
-  }, 60000);
+  }
+  return false;
+});
+
+$('#stop-scene').click(function() {
+  if (stopActiveSceneIfAny('已停止场景：切回手动模式')) {
+    playback.pause();
+    render.update();
+  } else {
+    render.demoStatus(null);
+  }
+  return false;
 });
 });
 

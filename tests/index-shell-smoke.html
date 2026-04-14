@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Index Shell Smoke Test</title>
+    <style>
+      body { font-family: sans-serif; margin: 16px; }
+      #results.pass { color: #1b7f3b; }
+      #results.fail { color: #b42318; }
+      iframe { width: 100%; height: 600px; border: 1px solid #ccc; margin-top: 12px; }
+    </style>
+    <script>
+      window.renderSmokeResults = function(results) {
+        var failed = results.filter(function(r) { return !r.pass; });
+        var root = document.getElementById('results');
+        root.className = failed.length ? 'fail' : 'pass';
+        root.innerHTML = '<h1>' + (failed.length ? 'FAIL' : 'PASS') + '</h1>' +
+          results.map(function(r) {
+            return '<div>' + (r.pass ? 'PASS' : 'FAIL') + ' - ' + r.message + '</div>';
+          }).join('');
+      };
+
+      window.runSmoke = function() {
+        var results = [];
+        var assert = function(condition, message) {
+          results.push({ pass: !!condition, message: message });
+        };
+        var frame = document.getElementById('app-frame');
+        var frameWindow = frame && frame.contentWindow;
+        if (typeof window.runIndexShellSmoke === 'function') {
+          window.runIndexShellSmoke(frameWindow, assert);
+        } else {
+          assert(false, 'runIndexShellSmoke should exist');
+        }
+        window.renderSmokeResults(results);
+      };
+    </script>
+    <script src="index-shell-smoke.js"></script>
+  </head>
+  <body>
+    <div id="results">Loading...</div>
+    <iframe id="app-frame" src="../index.html" onload="window.runSmoke()"></iframe>
+  </body>
+</html>
