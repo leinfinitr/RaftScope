@@ -111,8 +111,13 @@
     var startRecovery = getById(frameDocument, 'start-recovery-scene');
     var stopScene = getById(frameDocument, 'stop-scene');
     var continueScene = getById(frameDocument, 'continue-scene');
+    var timeIcon = getById(frameDocument, 'time-icon');
     var initialBadgeText = getNodeText(badge);
     assert(initialBadgeText.length > 0, 'scene badge should have initial text');
+    assert(getNodeText(stopScene) === '重置为初始状态',
+      'stop button should be renamed to reset initial state');
+    assert(!!timeIcon && /glyphicon-pause/.test(timeIcon.className),
+      'page should start paused');
 
     var startClicked = clickNode(startRecovery, frameWindow);
     assert(startClicked, 'start recovery button should be clickable');
@@ -130,5 +135,7 @@
       'scene badge should return to manual mode after stop');
     assert(!!continueScene && continueScene.disabled === true,
       'continue button should be disabled after stop');
+    assert(!!timeIcon && /glyphicon-pause/.test(timeIcon.className),
+      'reset should leave the simulation paused');
   };
 })(window);

@@ -16,6 +16,22 @@
     var expectedTitles = ['冲突日志覆盖演示', '故障恢复与日志追平'].sort();
     assert(JSON.stringify(titles) === JSON.stringify(expectedTitles),
            'scene titles should match the task requirements');
+    var recoveryScene = scenes.filter(function(scene) {
+      return scene.id === 'failure-recovery-log-catchup';
+    })[0];
+    var overwriteScene = scenes.filter(function(scene) {
+      return scene.id === 'conflict-log-overwrite';
+    })[0];
+    assert(!!recoveryScene, 'failure-recovery-log-catchup scene should exist');
+    assert(!!overwriteScene, 'conflict-log-overwrite scene should exist');
+    if (recoveryScene) {
+      assert(recoveryScene.steps.length === 12,
+        'failure-recovery-log-catchup should preserve the original 12-step flow');
+    }
+    if (overwriteScene) {
+      assert(overwriteScene.steps.length === 9,
+        'conflict-log-overwrite should preserve the original 9-step flow');
+    }
     var allStepsHavePauseMessage = scenes.every(function(scene) {
       return Array.isArray(scene.steps) && scene.steps.length >= 2 &&
         scene.steps.every(function(step) {

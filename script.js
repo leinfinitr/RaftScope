@@ -432,9 +432,9 @@ render.demoStatus = function(status) {
       .append($('<div class="panel-heading"></div>').text('当前步骤'))
       .append($('<div class="panel-body"></div>')
         .append($('<p><strong>手动演示模式</strong></p>'))
-        .append($('<p></p>').text('先启动左侧场景按钮可获得分步讲解；也可直接拖动时间轴、右键节点或使用快捷键演示。')));
+        .append($('<p></p>').text('当前处于初始暂停状态。你可以手动开始播放，或点击左侧场景按钮进入分步讲解。')));
     continueButton.prop('disabled', true);
-    stopButton.prop('disabled', true);
+    stopButton.prop('disabled', false);
     return;
   }
 
@@ -718,6 +718,14 @@ var buildPeersForServer = function(id) {
   return peers;
 };
 
+var clearSceneContextState = function() {
+  Object.keys(sceneContext).forEach(function(key) {
+    if (key.charAt(0) === '_') {
+      delete sceneContext[key];
+    }
+  });
+};
+
 var clearDemoLogs = function() {
   var logContainer = $('#log-container');
   if (logContainer.length) {
@@ -735,8 +743,23 @@ var resetClusterForScene = function() {
   }
   state.current.servers = servers;
   state.current.messages = [];
+  state.current.time = 0;
   raft.enableAppendEntries = true;
+  clearSceneContextState();
   clearDemoLogs();
+};
+
+var resetSimulationToInitialState = function() {
+  if (demoController && demoController.getStatus()) {
+    demoController.stop();
+  }
+  state.current.time = 0;
+  state.fork();
+  resetClusterForScene();
+  state.save();
+  playback.pause();
+  render.demoStatus(null);
+  render.update();
 };
 
 var forceLeaderForScene = function(id) {
@@ -780,6 +803,9 @@ var sceneContext = {
   model: function() {
     return state.current;
   },
+  log: function(message) {
+    raft.log(message);
+  },
   server: function(id) {
     return findServerById(id);
   },
@@ -806,6 +832,27 @@ var sceneContext = {
     if (server) {
       raft.clientRequest(state.current, server);
     }
+  },
+  timeout: function(id) {
+    var server = findServerById(id);
+    if (server) {
+      raft.timeout(state.current, server);
+    }
+  },
+  rules: function() {
+    return raft.rules;
+  },
+  countTrue: function(values) {
+    return util.countTrue(values);
+  },
+  mapValues: function(valueMap) {
+    return util.mapValues(valueMap);
+  },
+  constants: function() {
+    return {
+      ELECTION_TIMEOUT: ELECTION_TIMEOUT,
+      NUM_SERVERS: NUM_SERVERS
+    };
   },
   setAppendEntriesEnabled: function(enabled) {
     raft.enableAppendEntries = !!enabled;
@@ -886,10 +933,7 @@ var startDemoScene = function(sceneId) {
     raft.log('未找到演示场景：' + sceneId);
     return false;
   }
-  if (demoController.getStatus()) {
-    demoController.stop();
-  }
-  state.fork();
+  resetSimulationToInitialState();
   demoController.start(scene, sceneContext);
   raft.log('开始场景：' + scene.title);
   playback.resume();
@@ -1040,8 +1084,7 @@ state.updater = function(state) {
 
 state.init();
 render.legend();
-render.demoStatus(demoController ? demoController.getStatus() : null);
-render.update();
+resetSimulationToInitialState();
 
 $('#start-recovery-scene').click(function() {
   startDemoScene('failure-recovery-log-catchup');
@@ -1062,12 +1105,7 @@ $('#continue-scene').click(function() {
 });
 
 $('#stop-scene').click(function() {
-  if (stopActiveSceneIfAny('已停止场景：切回手动模式')) {
-    playback.pause();
-    render.update();
-  } else {
-    render.demoStatus(null);
-  }
+  resetSimulationToInitialState();
   return false;
 });
 });
