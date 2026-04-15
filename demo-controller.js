@@ -80,9 +80,26 @@
         scene: cloneScene(value.scene),
         stepIndex: value.stepIndex,
         stepStarted: value.stepStarted,
+        stepStartedAt: value.stepStartedAt,
         waitingForAdvance: value.waitingForAdvance,
         pausedForNarration: value.pausedForNarration,
         completed: value.completed
+      };
+    }
+
+    function getSerializedState(value) {
+      if (!value || !value.scene || !value.scene.id) {
+        return null;
+      }
+      return {
+        active: value.active,
+        completed: value.completed,
+        sceneId: value.scene.id,
+        stepIndex: value.stepIndex,
+        stepStarted: value.stepStarted,
+        stepStartedAt: value.stepStartedAt,
+        waitingForAdvance: value.waitingForAdvance,
+        pausedForNarration: value.pausedForNarration
       };
     }
 
@@ -132,6 +149,34 @@
           waitingForAdvance: false,
           pausedForNarration: false,
         };
+        notifyStateChange(internalState);
+      },
+      serialize: function() {
+        return getSerializedState(internalState);
+      },
+      restore: function(snapshot, scene, context) {
+        if (!snapshot || !scene) {
+          internalState = null;
+          notifyStateChange(internalState);
+          return;
+        }
+
+        var clonedScene = cloneScene(scene);
+        internalState = {
+          scene: clonedScene,
+          context: context || {},
+          active: !!snapshot.active,
+          completed: !!snapshot.completed,
+          stepIndex: typeof snapshot.stepIndex === 'number' ? snapshot.stepIndex : 0,
+          stepStarted: !!snapshot.stepStarted,
+          stepStartedAt: typeof snapshot.stepStartedAt === 'number' ? snapshot.stepStartedAt : 0,
+          waitingForAdvance: !!snapshot.waitingForAdvance,
+          pausedForNarration: !!snapshot.pausedForNarration,
+        };
+
+        if (!hasStepAt(clonedScene, internalState.stepIndex) && !internalState.completed) {
+          completeState(internalState);
+        }
         notifyStateChange(internalState);
       },
       advance: function() {

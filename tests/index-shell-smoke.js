@@ -131,6 +131,45 @@
       'continue button should stay disabled when scenes no longer auto-pause');
     assert(!!timeIcon && /glyphicon-pause/.test(timeIcon.className),
       'starting a scene should keep the simulation paused until manual play');
+    if (typeof startRecovery.focus === 'function') {
+      startRecovery.focus();
+      clickNode(startRecovery, frameWindow);
+      assert(frameDocument.activeElement !== startRecovery,
+        'starting a scene should clear button focus so the space shortcut can start playback');
+    }
+    if (frameWindow && typeof frameWindow.KeyboardEvent === 'function' &&
+        typeof frameWindow.dispatchEvent === 'function') {
+      frameWindow.dispatchEvent(new frameWindow.KeyboardEvent('keydown', {
+        bubbles: true,
+        cancelable: true,
+        key: ' ',
+        code: 'Space',
+        keyCode: 32,
+        which: 32
+      }));
+      assert(!!timeIcon && /glyphicon-time/.test(timeIcon.className),
+        'pressing space should start a newly entered scene');
+    }
+    if (frameWindow && frameWindow.playback &&
+        typeof frameWindow.playback.pause === 'function') {
+      frameWindow.playback.pause();
+    }
+    if (frameWindow && frameWindow.state &&
+        typeof frameWindow.state.seek === 'function' &&
+        frameWindow.render &&
+        typeof frameWindow.render.update === 'function') {
+      frameWindow.state.seek(260000);
+      frameWindow.render.update();
+      if (frameWindow.$ &&
+          typeof frameWindow.$ === 'function') {
+        frameWindow.$('#time').slider('setValue', 160000);
+        frameWindow.$('#time').trigger('slideStart');
+        frameWindow.$('#time').trigger('slide');
+        frameWindow.$('#time').trigger('slideStop');
+      }
+      assert(getNodeText(badge).indexOf('故障恢复与日志追平') !== -1,
+        'dragging the timeline should keep the recovery scene active');
+    }
 
     var stopClicked = clickNode(stopScene, frameWindow);
     assert(stopClicked, 'stop scene button should be clickable');
@@ -141,5 +180,25 @@
       'continue button should be disabled after stop');
     assert(!!timeIcon && /glyphicon-pause/.test(timeIcon.className),
       'reset should leave the simulation paused');
+
+    var overwriteClicked = clickNode(getById(frameDocument, 'start-overwrite-scene'),
+      frameWindow);
+    assert(overwriteClicked, 'start overwrite button should be clickable');
+    if (frameWindow && frameWindow.state &&
+        typeof frameWindow.state.seek === 'function' &&
+        frameWindow.render &&
+        typeof frameWindow.render.update === 'function') {
+      frameWindow.state.seek(260000);
+      frameWindow.render.update();
+      if (frameWindow.$ &&
+          typeof frameWindow.$ === 'function') {
+        frameWindow.$('#time').slider('setValue', 140000);
+        frameWindow.$('#time').trigger('slideStart');
+        frameWindow.$('#time').trigger('slide');
+        frameWindow.$('#time').trigger('slideStop');
+      }
+      assert(getNodeText(badge).indexOf('冲突日志覆盖演示') !== -1,
+        'dragging the timeline should keep the overwrite scene active');
+    }
   };
 })(window);

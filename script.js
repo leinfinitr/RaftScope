@@ -27,6 +27,7 @@ record = function(name) {
 };
 replay = function(name, done) {
   state.importFromString(localStorage.getItem(name));
+  restoreDemoControllerFromCurrentState();
   render.update();
   onReplayDone = done;
 };
@@ -34,6 +35,7 @@ replay = function(name, done) {
 state = makeState({
   servers: [],
   messages: [],
+  demoState: null,
 });
 
 var sliding = false;
@@ -730,6 +732,13 @@ var clearDemoLogs = function() {
   }
 };
 
+var blurActiveControl = function() {
+  var activeElement = document.activeElement;
+  if (activeElement && typeof activeElement.blur === 'function') {
+    activeElement.blur();
+  }
+};
+
 var resetClusterForScene = function() {
   var now = state.current.time;
   var servers = [];
@@ -741,6 +750,7 @@ var resetClusterForScene = function() {
   state.current.servers = servers;
   state.current.messages = [];
   state.current.time = 0;
+  state.current.demoState = null;
   raft.enableAppendEntries = true;
   clearSceneContextState();
   clearDemoLogs();
@@ -871,12 +881,45 @@ var getSceneById = function(sceneId) {
   return sceneRegistry[sceneId] || null;
 };
 
-var isSceneWaitingForAdvance = function() {
-  if (!demoController) {
-    return false;
+var syncDemoStateToCurrentState = function() {
+  if (!state || !state.current) {
+    return;
   }
-  var status = demoController.getStatus();
-  return !!(status && status.waitingForAdvance);
+  if (!demoController || typeof demoController.serialize !== 'function') {
+    state.current.demoState = null;
+    return;
+  }
+  var snapshot = demoController.serialize();
+  state.current.demoState = snapshot ? util.clone(snapshot) : null;
+};
+
+var restoreDemoControllerFromCurrentState = function() {
+  if (!demoController || !state || !state.current) {
+    return;
+  }
+
+  var currentSnapshot = typeof demoController.serialize === 'function' ?
+    demoController.serialize() : null;
+  var targetSnapshot = state.current.demoState || null;
+
+  if (util.equals(currentSnapshot, targetSnapshot)) {
+    return;
+  }
+
+  if (!targetSnapshot || !targetSnapshot.sceneId) {
+    if (demoController.getStatus()) {
+      demoController.stop();
+    }
+    return;
+  }
+
+  var scene = getSceneById(targetSnapshot.sceneId);
+  if (!scene) {
+    demoController.stop();
+    return;
+  }
+
+  demoController.restore(targetSnapshot, scene, sceneContext);
 };
 
 var handlePauseAdvanceInput = function() {
@@ -903,6 +946,7 @@ demoController = (typeof createDemoController === 'function') ?
   createDemoController({
     playback: playback,
     onStateChange: function(status) {
+      syncDemoStateToCurrentState();
       render.demoStatus(status);
     }
   }) :
@@ -919,6 +963,9 @@ var startDemoScene = function(sceneId) {
   }
   resetSimulationToInitialState();
   demoController.start(scene, sceneContext);
+  syncDemoStateToCurrentState();
+  state.save();
+  blurActiveControl();
   render.update();
   return true;
 };
@@ -932,6 +979,7 @@ var startDemoScene = function(sceneId) {
       var modelMicrosElapsed = wallMicrosElapsed / speed;
       var modelMicros = state.current.time + modelMicrosElapsed;
       state.seek(modelMicros);
+      restoreDemoControllerFromCurrentState();
       if (modelMicros >= state.getMaxTime() && onReplayDone !== undefined) {
         var f = onReplayDone;
         onReplayDone = undefined;
@@ -945,13 +993,24 @@ var startDemoScene = function(sceneId) {
   window.requestAnimationFrame(step);
 })();
 
+$(window).keydown(function(e) {
+  if (e.target.id == "title")
+    return;
+  if (e.keyCode == ' '.charCodeAt(0) ||
+      e.keyCode == 190 /* dot, emitted by Logitech remote */) {
+    e.preventDefault();
+    handlePauseAdvanceInput();
+    return false;
+  }
+});
+
 $(window).keyup(function(e) {
   if (e.target.id == "title")
     return;
   var leader = getLeader();
   if (e.keyCode == ' '.charCodeAt(0) ||
       e.keyCode == 190 /* dot, emitted by Logitech remote */) {
-    handlePauseAdvanceInput();
+    return;
   } else if (e.keyCode == 'C'.charCodeAt(0)) {
     if (leader !== null) {
       state.fork();
@@ -1016,34 +1075,28 @@ timeSlider.slider({
     return (value / 1e6).toFixed(3) + 's';
   },
 });
-var sceneCanceledByTimelineDrag = false;
 timeSlider.on('slideStart', function() {
-  sceneCanceledByTimelineDrag = stopActiveSceneIfAny('已取消场景：手动拖动时间轴');
   playback.pause();
   sliding = true;
 });
 timeSlider.on('slideStop', function() {
   // If you click rather than drag,  there won't be any slide events, so you
   // have to seek and update here too.
-  if (!sceneCanceledByTimelineDrag) {
-    sceneCanceledByTimelineDrag = stopActiveSceneIfAny('已取消场景：手动调整时间轴');
-  }
   state.seek(timeSlider.slider('getValue'));
-  sceneCanceledByTimelineDrag = false;
+  restoreDemoControllerFromCurrentState();
   sliding = false;
   render.update();
 });
 timeSlider.on('slide', function() {
-  if (!sceneCanceledByTimelineDrag) {
-    sceneCanceledByTimelineDrag = stopActiveSceneIfAny('已取消场景：手动拖动时间轴');
-  }
   state.seek(timeSlider.slider('getValue'));
+  restoreDemoControllerFromCurrentState();
   render.update();
 });
 
 $('#time-button')
   .click(function() {
     playback.toggle();
+    blurActiveControl();
     return false;
   });
 
@@ -1059,6 +1112,7 @@ state.updater = function(state) {
   if (demoController) {
     demoController.afterUpdate();
   }
+  syncDemoStateToCurrentState();
   var time = state.current.time;
   var base = state.base(time);
   state.current.time = base.time;
@@ -1082,11 +1136,13 @@ $('#start-overwrite-scene').click(function() {
 });
 
 $('#continue-scene').click(function() {
+  blurActiveControl();
   return false;
 });
 
 $('#stop-scene').click(function() {
   resetSimulationToInitialState();
+  blurActiveControl();
   return false;
 });
 });

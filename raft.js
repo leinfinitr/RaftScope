@@ -475,7 +475,7 @@ raft.testComplexScenario = function(model) {
                 // 强制其他服务器的选举超时时间晚于Server 2
                 model.servers.forEach(function(server) {
                   if (server.id !== 2) {
-                      server.electionAlarm = model.time + ELECTION_TIMEOUT * 2;
+                      server.electionAlarm = model.time + ELECTION_TIMEOUT * 4;
                   }
                 });
                 server2.electionAlarm = model.time + ELECTION_TIMEOUT;
@@ -534,7 +534,7 @@ raft.testComplexScenario = function(model) {
                 var server5 = model.servers[4];
                 model.servers.forEach(function(server) {
                   if (server.id !== 5 && server.state !== 'stopped') {
-                      server.electionAlarm = model.time + ELECTION_TIMEOUT * 2;
+                      server.electionAlarm = model.time + ELECTION_TIMEOUT * 4;
                   }
                 });
                 // for (var i = 1; i < NUM_SERVERS; i++) {

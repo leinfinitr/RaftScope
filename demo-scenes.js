@@ -28,6 +28,24 @@
     return replicated;
   };
 
+  var allAvailableServersHaveLogLengthAtLeast = function(model, minLogLength) {
+    return model.servers.every(function(server) {
+      return server.state === 'stopped' || server.log.length >= minLogLength;
+    });
+  };
+
+  var allAvailableFollowersAckLengthAtLeast = function(model, leader, minLogLength) {
+    if (!leader) {
+      return false;
+    }
+    return leader.peers.every(function(peerId) {
+      var peer = model.servers[peerId - 1];
+      return !peer ||
+        peer.state === 'stopped' ||
+        leader.matchIndex[peerId] >= minLogLength;
+    });
+  };
+
   var scenes = [{
     id: 'failure-recovery-log-catchup',
     title: '故障恢复与日志追平',
@@ -71,7 +89,9 @@
         if (!server1 || server1.log.length !== 1) {
           return false;
         }
-        return countReplicatedAtLeast(model, server1.id, 1) > Math.floor(ctx.constants().NUM_SERVERS / 2);
+        return countReplicatedAtLeast(model, server1.id, 1) > Math.floor(ctx.constants().NUM_SERVERS / 2) &&
+          allAvailableServersHaveLogLengthAtLeast(model, 1) &&
+          allAvailableFollowersAckLengthAtLeast(model, server1, 1);
       }
     }, {
       title: '提交第二个请求',
@@ -88,7 +108,9 @@
         if (!server1 || server1.log.length !== 2) {
           return false;
         }
-        return countReplicatedAtLeast(model, server1.id, 2) > Math.floor(ctx.constants().NUM_SERVERS / 2);
+        return countReplicatedAtLeast(model, server1.id, 2) > Math.floor(ctx.constants().NUM_SERVERS / 2) &&
+          allAvailableServersHaveLogLengthAtLeast(model, 2) &&
+          allAvailableFollowersAckLengthAtLeast(model, server1, 2);
       }
     }, {
       title: 'Leader 宕机并触发重新选举',
@@ -280,7 +302,9 @@
         if (!server1 || server1.log.length !== 1) {
           return false;
         }
-        return countReplicatedAtLeast(model, server1.id, 1) > Math.floor(ctx.constants().NUM_SERVERS / 2);
+        return countReplicatedAtLeast(model, server1.id, 1) > Math.floor(ctx.constants().NUM_SERVERS / 2) &&
+          allAvailableServersHaveLogLengthAtLeast(model, 1) &&
+          allAvailableFollowersAckLengthAtLeast(model, server1, 1);
       }
     }, {
       title: '构造只部分复制的未提交日志',
