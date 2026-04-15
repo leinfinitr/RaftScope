@@ -418,11 +418,14 @@ render.legend = function() {
     .append($('<ul class="legend-list"></ul>')
       .append($('<li class="legend-item"></li>').html('<strong>节点圆圈</strong><span>服务器节点；灰色表示当前不可用。</span>'))
       .append($('<li class="legend-item"></li>').html('<strong>节点颜色</strong><span>表示当前任期，红色标签代表 Leader。</span>'))
-      .append($('<li class="legend-item"></li>').html('<strong>消息颜色</strong><span><span class="legend-message-chip request-vote">RequestVote</span><span class="legend-message-chip append-entries">AppendEntries</span><span class="legend-message-chip heartbeat">Heartbeat</span></span>'))
+      .append($('<li class="legend-item"></li>').html('<strong>消息颜色</strong><span class="legend-message-list"><span class="legend-message-row"><span class="legend-message-chip request-vote">RequestVote</span><span class="legend-message-label">投票请求</span></span><span class="legend-message-row"><span class="legend-message-chip append-entries">AppendEntries</span><span class="legend-message-label">日志复制</span></span><span class="legend-message-row"><span class="legend-message-chip heartbeat">Heartbeat</span><span class="legend-message-label">空日志心跳</span></span></span>'))
       .append($('<li class="legend-item"></li>').html('<strong>右侧日志</strong><span>展示每个节点的日志状态与同步位置。</span>')));
 };
 
 var getMessageVisualType = function(message) {
+  if (message.visualType) {
+    return message.visualType;
+  }
   if (message.type == 'AppendEntries' &&
       message.direction == 'request' &&
       Array.isArray(message.entries) &&

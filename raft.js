@@ -26,6 +26,15 @@ var sendMessage = function(model, message) {
 
 var sendRequest = function(model, request) {
   request.direction = 'request';
+  if (!request.visualType) {
+    if (request.type == 'AppendEntries' &&
+        Array.isArray(request.entries) &&
+        request.entries.length === 0) {
+      request.visualType = 'Heartbeat';
+    } else {
+      request.visualType = request.type;
+    }
+  }
   sendMessage(model, request);
 };
 
@@ -34,6 +43,7 @@ var sendReply = function(model, request, reply) {
   reply.to = request.from;
   reply.type = request.type;
   reply.direction = 'reply';
+  reply.visualType = request.visualType || reply.type;
   sendMessage(model, reply);
 };
 

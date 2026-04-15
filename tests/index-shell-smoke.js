@@ -110,6 +110,9 @@
       var messageLegendChips = frameDocument.querySelectorAll('.legend-message-chip');
       assert(messageLegendChips.length === 3,
         'legend should distinguish RequestVote, AppendEntries, and heartbeat with separate chips');
+      var messageLegendRows = frameDocument.querySelectorAll('.legend-message-row');
+      assert(messageLegendRows.length === 3,
+        'message legend should render one legend row per message type');
     }
 
     var badge = getById(frameDocument, 'scene-status-badge');

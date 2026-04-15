@@ -575,20 +575,37 @@ svg #pause.resumed {
 }
 
 .legend-item span {
-  color: var(--text-soft);
+  color: var(--text-primary);
   font-size: 13px;
   line-height: 1.35;
+}
+
+.legend-message-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.legend-message-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-primary);
 }
 
 .legend-message-chip {
   display: inline-flex;
   align-items: center;
   padding: 2px 8px;
-  margin-right: 8px;
   border-radius: 999px;
   color: #ffffff;
   font-size: 12px;
   font-weight: 600;
+}
+
+.legend-message-label {
+  color: var(--text-primary);
+  font-size: 13px;
 }
 
 .legend-message-chip.request-vote {

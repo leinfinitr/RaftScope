@@ -491,6 +491,53 @@ function testHeartbeatDeliveredAtElectionDeadlinePreventsSpuriousElection() {
   );
 }
 
+function testHeartbeatReplyKeepsHeartbeatVisualType() {
+  const harness = createRaftHarness(37);
+  const raft = harness.raft;
+  const util = harness.util;
+  const model = harness.model;
+  const leader = model.servers[0];
+
+  leader.state = 'leader';
+  leader.term = 4;
+  leader.votedFor = 1;
+  leader.log = [{ term: 4, value: 'v' }];
+  leader.matchIndex = util.makeMap(leader.peers, 1);
+  leader.nextIndex = util.makeMap(leader.peers, 2);
+  leader.rpcDue = util.makeMap(leader.peers, util.Inf);
+  leader.heartbeatDue = util.makeMap(leader.peers, util.Inf);
+
+  model.messages.push({
+    from: 1,
+    to: 3,
+    type: 'AppendEntries',
+    direction: 'request',
+    term: 4,
+    prevIndex: 1,
+    prevTerm: 4,
+    entries: [],
+    commitIndex: 0,
+    visualType: 'Heartbeat',
+    sendTime: model.time,
+    recvTime: model.time + 1000
+  });
+
+  model.time += 1000;
+  raft.update(model);
+
+  const reply = model.messages.filter(function(message) {
+    return message.type === 'AppendEntries' &&
+      message.direction === 'reply' &&
+      message.from === 3 &&
+      message.to === 1;
+  })[0];
+
+  assert(
+    reply && reply.visualType === 'Heartbeat',
+    'heartbeat replies should preserve the heartbeat visual type instead of falling back to AppendEntries'
+  );
+}
+
 function testConflictSceneRecoversServer1AsLeader() {
   const result = runUntilSceneStep({
     seed: 5,
@@ -640,6 +687,7 @@ function testConflictSceneHidesEmptyHeartbeatsInStep5() {
   testDemoControllerCanSerializeAndRestore,
   testNetworkFailureDropsInflightAppendEntries,
   testHeartbeatDeliveredAtElectionDeadlinePreventsSpuriousElection,
+  testHeartbeatReplyKeepsHeartbeatVisualType,
   testConflictSceneKeepsOnlyOneVisibleCopyForServer2InStep3,
   testConflictSceneHidesEmptyHeartbeatsInStep5,
   testConflictSceneRecoversServer1AsLeader,
