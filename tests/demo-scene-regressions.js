@@ -200,7 +200,8 @@ function runUntilSceneStep(options) {
           return server.log.length;
         }),
         leaderMatchIndex: captureLeaderMatchIndex(model, options.leaderId),
-        servers: deepClone(model.servers)
+        servers: deepClone(model.servers),
+        messages: deepClone(model.messages)
       };
       break;
     }
@@ -437,6 +438,59 @@ function testNetworkFailureDropsInflightAppendEntries() {
   );
 }
 
+function testHeartbeatDeliveredAtElectionDeadlinePreventsSpuriousElection() {
+  const harness = createRaftHarness(31);
+  const raft = harness.raft;
+  const util = harness.util;
+  const model = harness.model;
+  const leader = model.servers[0];
+  const follower = model.servers[2];
+
+  leader.state = 'leader';
+  leader.term = 4;
+  leader.votedFor = 1;
+  leader.log = [{ term: 4, value: 'v' }];
+  leader.matchIndex = util.makeMap(leader.peers, 1);
+  leader.nextIndex = util.makeMap(leader.peers, 2);
+  leader.rpcDue = util.makeMap(leader.peers, util.Inf);
+  leader.heartbeatDue = util.makeMap(leader.peers, util.Inf);
+
+  follower.state = 'follower';
+  follower.term = 4;
+  follower.votedFor = null;
+  follower.electionAlarm = 1000;
+
+  model.messages.push({
+    from: leader.id,
+    to: follower.id,
+    type: 'AppendEntries',
+    direction: 'request',
+    term: leader.term,
+    prevIndex: 1,
+    prevTerm: 4,
+    entries: [],
+    commitIndex: 0,
+    sendTime: model.time,
+    recvTime: 1000
+  });
+
+  model.time = 1000;
+  raft.update(model);
+
+  assert(
+    follower.state === 'follower',
+    'a heartbeat that arrives exactly at election timeout should be processed before the follower starts a new election'
+  );
+  assert(
+    follower.term === 4,
+    'a heartbeat that arrives exactly at election timeout should not force the follower to bump its term'
+  );
+  assert(
+    follower.electionAlarm > model.time,
+    'a heartbeat that arrives exactly at election timeout should reset the follower electionAlarm'
+  );
+}
+
 function testConflictSceneRecoversServer1AsLeader() {
   const result = runUntilSceneStep({
     seed: 5,
@@ -510,8 +564,73 @@ function testConflictSceneKeepsServer3TrafficReadable() {
   });
 
   assert(
-    appendEntriesCount <= 2,
-    'conflict-log-overwrite step 7 should keep Server 1 -> Server 3 AppendEntries traffic small enough for a clear demo'
+    appendEntriesCount === 2,
+    'conflict-log-overwrite step 7 should show exactly two Server 1 -> Server 3 AppendEntries rounds in the demo'
+  );
+}
+
+function testConflictSceneShowsOnlyOneServer3RequestAtStep7Start() {
+  const result = runUntilSceneStep({
+    seed: 5,
+    sceneId: 'conflict-log-overwrite',
+    targetStepIndex: 6,
+    leaderId: 1,
+    tickDuration: 10000,
+    maxTicks: 4000
+  });
+
+  const server3Requests = result.messages.filter(function(message) {
+    return message.type === 'AppendEntries' &&
+      message.direction === 'request' &&
+      message.from === 1 &&
+      message.to === 3;
+  });
+
+  assert(
+    server3Requests.length === 1,
+    'conflict-log-overwrite step 7 should start with exactly one visible AppendEntries from Server 1 to Server 3'
+  );
+}
+
+function testConflictSceneKeepsOnlyOneVisibleCopyForServer2InStep3() {
+  const appendEntriesCount = countSceneMessages({
+    seed: 5,
+    sceneId: 'conflict-log-overwrite',
+    startStepIndex: 2,
+    stopStepIndex: 3,
+    tickDuration: 10000,
+    maxTicks: 2000,
+    filter: function(message) {
+      return message.type === 'AppendEntries' &&
+        message.direction === 'request' &&
+        message.from === 1;
+    }
+  });
+
+  assert(
+    appendEntriesCount === 1,
+    'conflict-log-overwrite step 3 should keep only one visible AppendEntries copy from Server 1 so the demo clearly shows that only Server 2 received it'
+  );
+}
+
+function testConflictSceneHidesEmptyHeartbeatsInStep5() {
+  const appendEntriesCount = countSceneMessages({
+    seed: 5,
+    sceneId: 'conflict-log-overwrite',
+    startStepIndex: 4,
+    stopStepIndex: 5,
+    tickDuration: 10000,
+    maxTicks: 2000,
+    filter: function(message) {
+      return message.type === 'AppendEntries' &&
+        message.direction === 'request' &&
+        message.from === 5;
+    }
+  });
+
+  assert(
+    appendEntriesCount === 0,
+    'conflict-log-overwrite step 5 should not show empty heartbeats from Server 5 because they distract from the local unreplicated write'
   );
 }
 
@@ -520,8 +639,12 @@ function testConflictSceneKeepsServer3TrafficReadable() {
   testRecoverySceneWaitsForSecondRequestToDrainBeforeCrash,
   testDemoControllerCanSerializeAndRestore,
   testNetworkFailureDropsInflightAppendEntries,
+  testHeartbeatDeliveredAtElectionDeadlinePreventsSpuriousElection,
+  testConflictSceneKeepsOnlyOneVisibleCopyForServer2InStep3,
+  testConflictSceneHidesEmptyHeartbeatsInStep5,
   testConflictSceneRecoversServer1AsLeader,
   testConflictScenePartiallySyncsServer3BeforeLeaderSwitchBack,
+  testConflictSceneShowsOnlyOneServer3RequestAtStep7Start,
   testConflictSceneKeepsServer3TrafficReadable,
   testConflictSceneAdvancesToFinalOverwritePhase
 ].forEach(function(testCase) {

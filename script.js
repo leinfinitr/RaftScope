@@ -418,9 +418,18 @@ render.legend = function() {
     .append($('<ul class="legend-list"></ul>')
       .append($('<li class="legend-item"></li>').html('<strong>节点圆圈</strong><span>服务器节点；灰色表示当前不可用。</span>'))
       .append($('<li class="legend-item"></li>').html('<strong>节点颜色</strong><span>表示当前任期，红色标签代表 Leader。</span>'))
-      .append($('<li class="legend-item"></li>').html('<strong>飞行消息</strong><span>RequestVote / AppendEntries 在节点之间传输。</span>'))
-      .append($('<li class="legend-item"></li>').html('<strong>右侧日志</strong><span>展示每个节点的日志、提交状态与同步位置。</span>'))
-      .append($('<li class="legend-item"></li>').html('<strong>时间轴</strong><span>用于暂停、继续和回放。</span>')));
+      .append($('<li class="legend-item"></li>').html('<strong>消息颜色</strong><span><span class="legend-message-chip request-vote">RequestVote</span><span class="legend-message-chip append-entries">AppendEntries</span><span class="legend-message-chip heartbeat">Heartbeat</span></span>'))
+      .append($('<li class="legend-item"></li>').html('<strong>右侧日志</strong><span>展示每个节点的日志状态与同步位置。</span>')));
+};
+
+var getMessageVisualType = function(message) {
+  if (message.type == 'AppendEntries' &&
+      message.direction == 'request' &&
+      Array.isArray(message.entries) &&
+      message.entries.length === 0) {
+    return 'Heartbeat';
+  }
+  return message.type;
 };
 
 render.demoStatus = function(status) {
@@ -463,9 +472,10 @@ render.messages = function(messagesSame) {
   if (!messagesSame) {
     messagesGroup.empty();
     state.current.messages.forEach(function(message, i) {
+      var visualType = getMessageVisualType(message);
       var a = SVG('a')
           .attr('id', 'message-' + i)
-          .attr('class', 'message ' + message.direction + ' ' + message.type)
+          .attr('class', 'message ' + message.direction + ' ' + message.type + ' ' + visualType)
           .attr('title', message.type + ' ' + message.direction)//.tooltip({container: 'body'})
           .append(SVG('circle'))
           .append(SVG('path').attr('class', 'message-direction'));
@@ -526,7 +536,7 @@ render.messages = function(messagesSame) {
     }
     var dir = $('#message-' + i + ' path.message-direction', messagesGroup);
     if (playback.isPaused()) {
-      dir.attr('style', 'marker-end:url(#TriangleOutS-' + message.type + ')')
+      dir.attr('style', 'marker-end:url(#TriangleOutS-' + getMessageVisualType(message) + ')')
          .attr('d',
            messageArrowSpec(message.from, message.to,
                             (state.current.time - message.sendTime) /

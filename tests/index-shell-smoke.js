@@ -106,6 +106,11 @@
     var helpBodyText = getNodeText(frameDocument.body);
     assert(helpBodyText.indexOf('Set up log replication start scenario') === -1,
       'help text should not contain removed L shortcut scenario');
+    if (typeof frameDocument.querySelectorAll === 'function') {
+      var messageLegendChips = frameDocument.querySelectorAll('.legend-message-chip');
+      assert(messageLegendChips.length === 3,
+        'legend should distinguish RequestVote, AppendEntries, and heartbeat with separate chips');
+    }
 
     var badge = getById(frameDocument, 'scene-status-badge');
     var startRecovery = getById(frameDocument, 'start-recovery-scene');

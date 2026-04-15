@@ -281,15 +281,6 @@ var handleMessage = function(model, server, message) {
 
 
 raft.update = function(model) {
-  model.servers.forEach(function(server) {
-    rules.startNewElection(model, server);
-    rules.becomeLeader(model, server);
-    rules.advanceCommitIndex(model, server);
-    server.peers.forEach(function(peer) {
-      rules.sendRequestVote(model, server, peer);
-      rules.sendAppendEntries(model, server, peer);
-    });
-  });
   var deliver = [];
   var keep = [];
   model.messages.forEach(function(message) {
@@ -304,6 +295,16 @@ raft.update = function(model) {
       if (server.id == message.to) {
         handleMessage(model, server, message);
       }
+    });
+  });
+
+  model.servers.forEach(function(server) {
+    rules.startNewElection(model, server);
+    rules.becomeLeader(model, server);
+    rules.advanceCommitIndex(model, server);
+    server.peers.forEach(function(peer) {
+      rules.sendRequestVote(model, server, peer);
+      rules.sendAppendEntries(model, server, peer);
     });
   });
 };

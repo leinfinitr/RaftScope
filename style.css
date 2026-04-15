@@ -356,6 +356,11 @@ svg .message.AppendEntries {
   stroke: #fc8d62;
 }
 
+svg .message.Heartbeat {
+  fill: #4b7bec;
+  stroke: #4b7bec;
+}
+
 svg .message.reply circle {
   fill-opacity: 0;
 }
@@ -573,4 +578,27 @@ svg #pause.resumed {
   color: var(--text-soft);
   font-size: 13px;
   line-height: 1.35;
+}
+
+.legend-message-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  margin-right: 8px;
+  border-radius: 999px;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.legend-message-chip.request-vote {
+  background: #66c2a5;
+}
+
+.legend-message-chip.append-entries {
+  background: #fc8d62;
+}
+
+.legend-message-chip.heartbeat {
+  background: #4b7bec;
 }

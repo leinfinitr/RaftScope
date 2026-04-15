@@ -65,9 +65,23 @@
     });
   };
 
+  var clearAppendEntriesRequestsFromServer = function(model, serverId) {
+    model.messages = model.messages.filter(function(message) {
+      return message.type !== 'AppendEntries' ||
+        message.direction !== 'request' ||
+        message.from !== serverId;
+    });
+  };
+
   var suspendAutomaticReplicationToPeer = function(leader, peerId, inf) {
     leader.rpcDue[peerId] = inf;
     leader.heartbeatDue[peerId] = inf;
+  };
+
+  var suspendAutomaticReplicationToAllPeers = function(leader, inf) {
+    leader.peers.forEach(function(peerId) {
+      suspendAutomaticReplicationToPeer(leader, peerId, inf);
+    });
   };
 
   var sendControlledAppendEntriesToPeer = function(ctx, leader, peerId) {
@@ -337,19 +351,19 @@
       }
     }, {
       title: '构造只部分复制的未提交日志',
-      description: '再次发起请求，并只把新的 AppendEntries 发送给 Server 2，制造冲突后缀。',
-      pauseMessage: '只有 Server 2 收到了额外日志，这就是后续要被覆盖的冲突后缀。',
+      description: '再次发起请求，并在网络中断后只保留发往 Server 2 的那条复制消息，制造冲突后缀。',
+      pauseMessage: '为了让动画更清楚，这里只展示 Server 2 真正收到的那条复制消息；同一轮发往 Server 3/4/5 的消息视为在网络中丢失。',
       minimumElapsed: 100000,
       action: function(ctx) {
         var model = ctx.model();
         var server1 = ctx.server(1);
-        var rules = ctx.rules();
         ctx.log('步骤3: 再次发起请求');
         ctx.clientRequest(1);
         ctx.log('步骤3: 网络故障! 只有Server 2收到了AppendEntry');
         ctx.setAppendEntriesEnabled(false);
-        rules.sendAppendEntriesToSome(model, server1, 2);
-        rules.sendAppendEntriesToSome(model, server1, 2);
+        clearAppendEntriesRequestsFromServer(model, server1.id);
+        suspendAutomaticReplicationToAllPeers(server1, ctx.constants().INF);
+        sendControlledAppendEntriesToPeer(ctx, server1, 2);
       },
       check: function(ctx) {
         return ctx.server(2).log.length === 2;
@@ -379,13 +393,22 @@
       }
     }, {
       title: '由 Server 5 追加新日志',
-      description: '向新的 Leader Server 5 发送请求，但暂不让它完成日志同步。',
-      pauseMessage: 'Server 5 已经写入自己的新日志，但冲突尚未被消除。',
+      description: '向新的 Leader Server 5 发送请求，但先只保留本地写入，不展示对外复制。',
+      pauseMessage: '这里先观察 Server 5 的本地追加；为了避免和后面的覆盖阶段混在一起，脚本暂时不展示它向 follower 发送的空心跳。',
       minimumElapsed: 100000,
       action: function(ctx) {
+        var model = ctx.model();
+        var server5 = ctx.server(5);
         ctx.log('步骤5: 向Server 5发送新请求');
         ctx.clientRequest(5);
-        ctx.log('步骤5: 但Server 5还没AppendEntry');
+        clearAppendEntriesRequestsFromServer(model, server5.id);
+        suspendAutomaticReplicationToAllPeers(server5, ctx.constants().INF);
+        model.servers.forEach(function(server) {
+          if (server.id !== 1 && server.id !== 5 && server.state !== 'stopped') {
+            server.electionAlarm = model.time + ctx.constants().ELECTION_TIMEOUT * 2;
+          }
+        });
+        ctx.log('步骤5: 先只保留Server 5本地日志，不展示对Follower的复制');
       },
       check: function(ctx) {
         return ctx.server(5).log.length === 2;
@@ -414,27 +437,34 @@
       }
     }, {
       title: 'Server 1 扩展旧日志并部分传播',
-      description: 'Server 1 再写入一条日志，只向 Server 3 传播部分旧条目。',
-      pauseMessage: '旧 Leader 分支上的日志被继续扩展，但只传播到了部分节点。',
+      description: 'Server 1 再写入一条日志，先向各节点发出一轮复制探测，再只对 Server 3 定向补发旧分支中的下一条条目。',
+      pauseMessage: '这里可以重点讲两轮发送的区别：第一轮只是探测同步位置，第二轮才是对 Server 3 的定向补发，所以它只追上了旧分支的一部分。',
       minimumElapsed: 100000,
       action: function(ctx) {
+        var model = ctx.model();
         var server1 = ctx.server(1);
         ctx.log('步骤7: 向Server 1发送新请求');
         ctx.clientRequest(1);
-        server1.matchIndex[3] = 1;
-        server1.nextIndex[3] = 2;
-        sendControlledAppendEntriesToPeer(ctx, server1, 3);
+        clearAppendEntriesRequestsFromServer(model, server1.id);
+        server1.peers.forEach(function(peerId) {
+          ctx.rules().sendAppendEntriesToSome(model, server1, peerId);
+        });
+        suspendAutomaticReplicationToPeer(server1, 3, ctx.constants().INF);
         ctx._ruleStep7ManualRetryCount = 0;
-        ctx.log('步骤7: Server 1 Append了部分旧Entry');
+        ctx._ruleStep7SecondWaveSent = false;
       },
       check: function(ctx) {
         var server1 = ctx.server(1);
         var server3 = ctx.server(3);
         suspendAutomaticReplicationToPeer(server1, 3, ctx.constants().INF);
         if (server3.log.length < 2 && server1.state === 'leader') {
-          if (!hasPendingAppendEntriesTraffic(ctx.model(), server1.id, server3.id)) {
+          if (!ctx._ruleStep7SecondWaveSent &&
+              !hasPendingAppendEntriesTraffic(ctx.model(), server1.id, server3.id)) {
+            server1.matchIndex[3] = Math.max(server1.matchIndex[3], 1);
+            server1.nextIndex[3] = Math.max(server1.nextIndex[3], 2);
             sendControlledAppendEntriesToPeer(ctx, server1, 3);
             ctx._ruleStep7ManualRetryCount += 1;
+            ctx._ruleStep7SecondWaveSent = true;
           }
           return false;
         }
