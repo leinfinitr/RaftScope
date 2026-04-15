@@ -46,6 +46,35 @@
     });
   };
 
+  var prepareRecoveredServerForNextLeadership = function(model, server) {
+    var maxTerm = 0;
+    model.servers.forEach(function(otherServer) {
+      if (otherServer.state !== 'stopped') {
+        maxTerm = Math.max(maxTerm, otherServer.term);
+      }
+    });
+    server.term = Math.max(server.term, maxTerm);
+    server.votedFor = null;
+  };
+
+  var hasPendingAppendEntriesTraffic = function(model, firstId, secondId) {
+    return model.messages.some(function(message) {
+      return message.type === 'AppendEntries' &&
+        ((message.from === firstId && message.to === secondId) ||
+         (message.from === secondId && message.to === firstId));
+    });
+  };
+
+  var suspendAutomaticReplicationToPeer = function(leader, peerId, inf) {
+    leader.rpcDue[peerId] = inf;
+    leader.heartbeatDue[peerId] = inf;
+  };
+
+  var sendControlledAppendEntriesToPeer = function(ctx, leader, peerId) {
+    ctx.rules().sendAppendEntriesToSome(ctx.model(), leader, peerId);
+    suspendAutomaticReplicationToPeer(leader, peerId, ctx.constants().INF);
+  };
+
   var scenes = [{
     id: 'failure-recovery-log-catchup',
     title: '故障恢复与日志追平',
@@ -371,6 +400,7 @@
         var server1 = ctx.server(1);
         ctx.log('步骤6: Server 5网络故障, Server 1网络恢复成为Leader');
         ctx.networkRecover(1);
+        prepareRecoveredServerForNextLeadership(model, server1);
         ctx.networkFail(5);
         server1.electionAlarm = model.time + ctx.constants().ELECTION_TIMEOUT;
         model.servers.forEach(function(server) {
@@ -388,23 +418,24 @@
       pauseMessage: '旧 Leader 分支上的日志被继续扩展，但只传播到了部分节点。',
       minimumElapsed: 100000,
       action: function(ctx) {
-        var model = ctx.model();
         var server1 = ctx.server(1);
-        var rules = ctx.rules();
         ctx.log('步骤7: 向Server 1发送新请求');
         ctx.clientRequest(1);
-        rules.sendAppendEntriesToSome(model, server1, 3);
-        rules.sendAppendEntriesToSome(model, server1, 3);
-        ctx._ruleStep7DelayedSendDone = false;
+        server1.matchIndex[3] = 1;
+        server1.nextIndex[3] = 2;
+        sendControlledAppendEntriesToPeer(ctx, server1, 3);
+        ctx._ruleStep7ManualRetryCount = 0;
         ctx.log('步骤7: Server 1 Append了部分旧Entry');
       },
       check: function(ctx) {
-        var model = ctx.model();
         var server1 = ctx.server(1);
         var server3 = ctx.server(3);
-        if (!ctx._ruleStep7DelayedSendDone) {
-          ctx.rules().sendAppendEntriesToSome(model, server1, 3);
-          ctx._ruleStep7DelayedSendDone = true;
+        suspendAutomaticReplicationToPeer(server1, 3, ctx.constants().INF);
+        if (server3.log.length < 2 && server1.state === 'leader') {
+          if (!hasPendingAppendEntriesTraffic(ctx.model(), server1.id, server3.id)) {
+            sendControlledAppendEntriesToPeer(ctx, server1, 3);
+            ctx._ruleStep7ManualRetryCount += 1;
+          }
           return false;
         }
         return server1.log.length === 3 && server3.log.length === 2;
@@ -420,6 +451,7 @@
         ctx.log('步骤8: Server 1同步Entry时网络故障');
         ctx.log('步骤8: Server 5成为Leader');
         ctx.networkRecover(5);
+        prepareRecoveredServerForNextLeadership(model, server5);
         ctx.networkFail(1);
         server5.electionAlarm = model.time + ctx.constants().ELECTION_TIMEOUT;
         model.servers.forEach(function(server) {

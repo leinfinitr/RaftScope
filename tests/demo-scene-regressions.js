@@ -137,7 +137,8 @@ function createSceneHarness(seed) {
     constants: function() {
       return {
         ELECTION_TIMEOUT: 100000,
-        NUM_SERVERS: totalServers
+        NUM_SERVERS: totalServers,
+        INF: context.util.Inf
       };
     },
     setAppendEntriesEnabled: function(enabled) {
@@ -198,7 +199,8 @@ function runUntilSceneStep(options) {
         logs: model.servers.map(function(server) {
           return server.log.length;
         }),
-        leaderMatchIndex: captureLeaderMatchIndex(model, options.leaderId)
+        leaderMatchIndex: captureLeaderMatchIndex(model, options.leaderId),
+        servers: deepClone(model.servers)
       };
       break;
     }
@@ -215,6 +217,53 @@ function runUntilSceneStep(options) {
   }
 
   return captured;
+}
+
+function countSceneMessages(options) {
+  const harness = createSceneHarness(options.seed);
+  const controller = harness.controller;
+  const model = harness.model;
+  const raft = harness.raft;
+  const scene = harness.getSceneById(options.sceneId);
+  const seenMessages = new Set();
+  let counting = false;
+  let count = 0;
+
+  function collectMessages() {
+    model.messages.forEach(function(message) {
+      if (seenMessages.has(message)) {
+        return;
+      }
+      seenMessages.add(message);
+      if (counting && options.filter(message)) {
+        count += 1;
+      }
+    });
+  }
+
+  controller.start(scene, harness.sceneContext);
+
+  for (let tick = 0; tick < options.maxTicks; tick += 1) {
+    controller.beforeUpdate();
+    var status = controller.getStatus();
+    if (status && status.stepIndex === options.startStepIndex) {
+      counting = true;
+    }
+    collectMessages();
+    model.time += options.tickDuration;
+    raft.update(model);
+    controller.afterUpdate();
+    status = controller.getStatus();
+    collectMessages();
+    if (status && status.stepIndex >= options.stopStepIndex) {
+      return count;
+    }
+  }
+
+  throw new Error(
+    'did not reach step ' + (options.stopStepIndex + 1) +
+    ' while counting messages in scene ' + options.sceneId
+  );
 }
 
 function assert(condition, message) {
@@ -388,11 +437,93 @@ function testNetworkFailureDropsInflightAppendEntries() {
   );
 }
 
+function testConflictSceneRecoversServer1AsLeader() {
+  const result = runUntilSceneStep({
+    seed: 5,
+    sceneId: 'conflict-log-overwrite',
+    targetStepIndex: 6,
+    leaderId: 1,
+    tickDuration: 10000,
+    maxTicks: 3000
+  });
+
+  assert(
+    result.servers[0].state === 'leader',
+    'conflict-log-overwrite step 6 should hand leadership back to Server 1 before step 7 starts'
+  );
+  assert(
+    result.servers[1].state !== 'leader',
+    'conflict-log-overwrite step 6 should not allow Server 2 to win the election'
+  );
+}
+
+function testConflictSceneAdvancesToFinalOverwritePhase() {
+  const result = runUntilSceneStep({
+    seed: 5,
+    sceneId: 'conflict-log-overwrite',
+    targetStepIndex: 8,
+    leaderId: 5,
+    tickDuration: 10000,
+    maxTicks: 5000
+  });
+
+  assert(
+    result.servers[4].state === 'leader',
+    'conflict-log-overwrite should reach the final overwrite phase with Server 5 as leader'
+  );
+}
+
+function testConflictScenePartiallySyncsServer3BeforeLeaderSwitchBack() {
+  const result = runUntilSceneStep({
+    seed: 5,
+    sceneId: 'conflict-log-overwrite',
+    targetStepIndex: 7,
+    leaderId: 1,
+    tickDuration: 10000,
+    maxTicks: 4000
+  });
+
+  assert(
+    result.servers[0].log.length === 3,
+    'conflict-log-overwrite step 7 should keep the old leader branch extended on Server 1 before the next switch'
+  );
+  assert(
+    result.servers[2].log.length === 2,
+    'conflict-log-overwrite step 7 should propagate the old branch to Server 3 before the next leader switch'
+  );
+}
+
+function testConflictSceneKeepsServer3TrafficReadable() {
+  const appendEntriesCount = countSceneMessages({
+    seed: 5,
+    sceneId: 'conflict-log-overwrite',
+    startStepIndex: 6,
+    stopStepIndex: 7,
+    tickDuration: 10000,
+    maxTicks: 4000,
+    filter: function(message) {
+      return message.type === 'AppendEntries' &&
+        message.direction === 'request' &&
+        message.from === 1 &&
+        message.to === 3;
+    }
+  });
+
+  assert(
+    appendEntriesCount <= 2,
+    'conflict-log-overwrite step 7 should keep Server 1 -> Server 3 AppendEntries traffic small enough for a clear demo'
+  );
+}
+
 [
   testRecoverySceneWaitsForFirstRequestToDrain,
   testRecoverySceneWaitsForSecondRequestToDrainBeforeCrash,
   testDemoControllerCanSerializeAndRestore,
-  testNetworkFailureDropsInflightAppendEntries
+  testNetworkFailureDropsInflightAppendEntries,
+  testConflictSceneRecoversServer1AsLeader,
+  testConflictScenePartiallySyncsServer3BeforeLeaderSwitchBack,
+  testConflictSceneKeepsServer3TrafficReadable,
+  testConflictSceneAdvancesToFinalOverwritePhase
 ].forEach(function(testCase) {
   testCase();
 });

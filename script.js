@@ -858,7 +858,8 @@ var sceneContext = {
   constants: function() {
     return {
       ELECTION_TIMEOUT: ELECTION_TIMEOUT,
-      NUM_SERVERS: NUM_SERVERS
+      NUM_SERVERS: NUM_SERVERS,
+      INF: util.Inf
     };
   },
   setAppendEntriesEnabled: function(enabled) {
