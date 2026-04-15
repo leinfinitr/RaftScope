@@ -37,6 +37,12 @@ var sendReply = function(model, request, reply) {
   sendMessage(model, reply);
 };
 
+var dropMessagesForServer = function(model, serverId) {
+  model.messages = model.messages.filter(function(message) {
+    return message.from != serverId && message.to != serverId;
+  });
+};
+
 var logTerm = function(log, index) {
   if (index < 1 || index > log.length) {
     return 0;
@@ -305,6 +311,7 @@ raft.update = function(model) {
 raft.networkFailure = function(model, server) {
   server.state = 'stopped';
   server.electionAlarm = 0;
+  dropMessagesForServer(model, server.id);
 };
 
 raft.networkRecovery = function(model, server) {

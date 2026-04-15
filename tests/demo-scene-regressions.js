@@ -162,6 +162,16 @@ function createSceneHarness(seed) {
   };
 }
 
+function createRaftHarness(seed) {
+  const context = loadBrowserScripts(seed);
+  return {
+    context: context,
+    raft: context.raft,
+    util: context.util,
+    model: createModel(context.raft, 5)
+  };
+}
+
 function captureLeaderMatchIndex(model, leaderId) {
   return deepClone(model.servers[leaderId - 1].matchIndex);
 }
@@ -333,10 +343,56 @@ function testDemoControllerCanSerializeAndRestore() {
     'restore should rebuild the scene metadata from the saved snapshot');
 }
 
+function testNetworkFailureDropsInflightAppendEntries() {
+  const harness = createRaftHarness(17);
+  const raft = harness.raft;
+  const util = harness.util;
+  const model = harness.model;
+  const leader = model.servers[0];
+  const follower = model.servers[2];
+
+  leader.state = 'leader';
+  leader.term = 3;
+  leader.log = [{ term: 3, value: 'v' }];
+  leader.matchIndex = util.makeMap(leader.peers, 1);
+  leader.nextIndex = util.makeMap(leader.peers, 2);
+  leader.rpcDue = util.makeMap(leader.peers, util.Inf);
+  leader.heartbeatDue = util.makeMap(leader.peers, util.Inf);
+  follower.electionAlarm = 444444;
+
+  model.messages.push({
+    from: leader.id,
+    to: follower.id,
+    type: 'AppendEntries',
+    direction: 'request',
+    term: leader.term,
+    prevIndex: 1,
+    prevTerm: 3,
+    entries: [],
+    commitIndex: 0,
+    sendTime: model.time,
+    recvTime: model.time + 1000
+  });
+
+  raft.networkFailure(model, leader);
+  model.time += 1000;
+  raft.update(model);
+
+  assert(
+    follower.electionAlarm === 444444,
+    'networkFailure should drop queued AppendEntries from the failed leader before they reset follower electionAlarm'
+  );
+  assert(
+    model.messages.length === 0,
+    'networkFailure should remove in-flight messages that belong to the failed server'
+  );
+}
+
 [
   testRecoverySceneWaitsForFirstRequestToDrain,
   testRecoverySceneWaitsForSecondRequestToDrainBeforeCrash,
-  testDemoControllerCanSerializeAndRestore
+  testDemoControllerCanSerializeAndRestore,
+  testNetworkFailureDropsInflightAppendEntries
 ].forEach(function(testCase) {
   testCase();
 });
