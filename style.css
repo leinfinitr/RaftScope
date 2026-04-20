@@ -580,6 +580,72 @@ svg #pause.resumed {
   line-height: 1.35;
 }
 
+.legend-leader-text {
+  color: #d93025;
+  font-weight: 700;
+}
+
+.legend-node-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.legend-node-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-primary);
+}
+
+.legend-node-icon {
+  position: relative;
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  border: 2px solid #1f2a37;
+  background: #8da0cb;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+}
+
+.legend-node-icon.term-sample::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  right: -8px;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  border: 2px solid #666666;
+  background: #d0d5dd;
+  box-sizing: border-box;
+}
+
+.legend-node-icon.timer-sample {
+  background: transparent;
+  border: 3px solid #98a2b3;
+}
+
+.legend-node-id-sample {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  color: #d93025;
+  font-size: 13px;
+  font-weight: 700;
+  flex: 0 0 auto;
+}
+
+.legend-node-label {
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
 .legend-message-list {
   display: flex;
   flex-direction: column;
@@ -604,6 +670,41 @@ svg #pause.resumed {
 }
 
 .legend-message-label {
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.legend-log-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.legend-log-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-primary);
+}
+
+.legend-log-icon {
+  display: inline-block;
+  width: 18px;
+  height: 12px;
+  border: 3px solid #000000;
+  background: #f7fbff;
+  box-sizing: border-box;
+}
+
+.legend-log-icon.committed {
+  border-style: solid;
+}
+
+.legend-log-icon.uncommitted {
+  border-style: dashed;
+}
+
+.legend-log-label {
   color: var(--text-primary);
   font-size: 13px;
 }

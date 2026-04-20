@@ -107,12 +107,30 @@
     assert(helpBodyText.indexOf('Set up log replication start scenario') === -1,
       'help text should not contain removed L shortcut scenario');
     if (typeof frameDocument.querySelectorAll === 'function') {
+      var nodeLegendRows = frameDocument.querySelectorAll('.legend-node-row');
+      assert(nodeLegendRows.length === 3,
+        'node legend should render three rows for term colors, leader label, and timer ring');
       var messageLegendChips = frameDocument.querySelectorAll('.legend-message-chip');
       assert(messageLegendChips.length === 3,
         'legend should distinguish RequestVote, AppendEntries, and heartbeat with separate chips');
       var messageLegendRows = frameDocument.querySelectorAll('.legend-message-row');
       assert(messageLegendRows.length === 3,
         'message legend should render one legend row per message type');
+      var logLegendRows = frameDocument.querySelectorAll('.legend-log-row');
+      assert(logLegendRows.length === 2,
+        'log legend should render separate rows for committed and uncommitted entries');
+    }
+    var leaderLegendText = null;
+    if (typeof frameDocument.querySelector === 'function') {
+      leaderLegendText = frameDocument.querySelector('.legend-leader-text');
+    }
+    assert(!!leaderLegendText, 'legend should highlight the leader color word');
+    if (leaderLegendText && frameWindow && typeof frameWindow.getComputedStyle === 'function') {
+      var leaderLegendStyle = frameWindow.getComputedStyle(leaderLegendText);
+      assert(leaderLegendStyle &&
+        leaderLegendStyle.color !== 'rgb(0, 0, 0)' &&
+        leaderLegendStyle.color !== 'rgba(0, 0, 0, 1)',
+        'leader color word should render in red instead of default text color');
     }
 
     var badge = getById(frameDocument, 'scene-status-badge');

@@ -416,10 +416,9 @@ render.legend = function() {
   }
   body.empty()
     .append($('<ul class="legend-list"></ul>')
-      .append($('<li class="legend-item"></li>').html('<strong>节点圆圈</strong><span>服务器节点；灰色表示当前不可用。</span>'))
-      .append($('<li class="legend-item"></li>').html('<strong>节点颜色</strong><span>表示当前任期，红色标签代表 Leader。</span>'))
-      .append($('<li class="legend-item"></li>').html('<strong>消息颜色</strong><span class="legend-message-list"><span class="legend-message-row"><span class="legend-message-chip request-vote">RequestVote</span><span class="legend-message-label">投票请求</span></span><span class="legend-message-row"><span class="legend-message-chip append-entries">AppendEntries</span><span class="legend-message-label">日志复制</span></span><span class="legend-message-row"><span class="legend-message-chip heartbeat">Heartbeat</span><span class="legend-message-label">空日志心跳</span></span></span>'))
-      .append($('<li class="legend-item"></li>').html('<strong>右侧日志</strong><span>展示每个节点的日志状态与同步位置。</span>')));
+      .append($('<li class="legend-item"></li>').html('<strong>节点</strong><span class="legend-node-list"><span class="legend-node-row"><span class="legend-node-icon term-sample" aria-hidden="true"></span><span class="legend-node-label">颜色区分任期，灰色代表节点不可用</span></span><span class="legend-node-row"><span class="legend-node-id-sample" aria-hidden="true">S1</span><span class="legend-node-label">节点名称为<span class="legend-leader-text">红色</span>代表 Leader</span></span><span class="legend-node-row"><span class="legend-node-icon timer-sample" aria-hidden="true"></span><span class="legend-node-label">节点外圈为随机计时器</span></span></span>'))
+      .append($('<li class="legend-item"></li>').html('<strong>消息</strong><span class="legend-message-list"><span class="legend-message-row"><span class="legend-message-chip request-vote">RequestVote</span><span class="legend-message-label">投票请求</span></span><span class="legend-message-row"><span class="legend-message-chip append-entries">AppendEntries</span><span class="legend-message-label">日志复制</span></span><span class="legend-message-row"><span class="legend-message-chip heartbeat">Heartbeat</span><span class="legend-message-label">空日志心跳</span></span></span>'))
+      .append($('<li class="legend-item"></li>').html('<strong>日志</strong><span class="legend-log-list"><span class="legend-log-row"><span class="legend-log-icon committed" aria-hidden="true"></span><span class="legend-log-label">已提交（commit）</span></span><span class="legend-log-row"><span class="legend-log-icon uncommitted" aria-hidden="true"></span><span class="legend-log-label">未提交</span></span></span>')));
 };
 
 var getMessageVisualType = function(message) {
@@ -448,7 +447,7 @@ render.demoStatus = function(status) {
       .append($('<div class="panel-heading"></div>').text('当前步骤'))
       .append($('<div class="panel-body"></div>')
         .append($('<p><strong>手动演示模式</strong></p>'))
-        .append($('<p></p>').text('当前处于初始暂停状态。你可以手动开始播放，或点击左侧场景按钮进入分步讲解。')));
+        .append($('<p></p>').text('当前处于初始暂停状态。')));
     continueButton.prop('disabled', true);
     stopButton.prop('disabled', false);
     return;
